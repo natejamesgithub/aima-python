@@ -80,9 +80,8 @@ class PlanningProblem:
 
         return expansions
 
-
     def expand_actions(self, name=None):
-        "Generate all possible actions with variable bindings for precondition selection heuristic"
+        """Generate all possible actions with variable bindings for precondition selection heuristic"""
 
         has_domains = all(action.domain for action in self.actions if action.precond)
         kb = None
@@ -222,7 +221,7 @@ class Action:
                       list(filter(lambda effect: effect.op[:3] != 'Not', self.effect)))
 
     def substitute(self, e, args):
-        "Replaces variables in expression with their respective Propositional symbol"
+        """Replaces variables in expression with their respective Propositional symbol"""
 
         new_args = list(e.args)
         for num, x in enumerate(e.args):
@@ -232,7 +231,7 @@ class Action:
         return Expr(e.op, *new_args)
 
     def check_precond(self, kb, args):
-        "Checks if the precondition is satisfied in the current state"
+        """Checks if the precondition is satisfied in the current state"""
 
         if isinstance(kb, list):
             kb = FolKB(kb)
@@ -777,19 +776,6 @@ class Level:
     def __call__(self, actions, objects):
         self.build(actions, objects)
         self.find_mutex()
-        
-    def __str__(self):
-        state_str = ", ".join(str(s) for s in self.current_state)
-        action_str = ", ".join(str(a) for a in self.current_action_links.keys())
-        mutex_str = ", ".join([str(m) for m in self.mutex])
-        return (
-            f"<Level>\n"
-            f"  Current State: {{{state_str}}}\n"
-            f"  Actions: {{{action_str}}}\n"
-            f"  Mutex: {{{mutex_str}}}\n"
-        )
-
-    __repr__ = __str__
 
     def separate(self, e):
         """Separates an iterable of elements into positive and negative parts"""
@@ -803,9 +789,8 @@ class Level:
                 positive.append(clause)
         return positive, negative
 
-    
     def find_mutex(self):
-        "Finds mutually exclusive actions"
+        """Finds mutually exclusive actions"""
 
         # Inconsistent effects
         pos_nsl, neg_nsl = self.separate(self.next_state_links)
@@ -909,18 +894,6 @@ class Graph:
 
     def __call__(self):
         self.expand_graph()
-        
-    def __str__(self):
-        levels_str = "\n".join(
-            f"Level {i}:\n{str(level)}" for i, level in enumerate(self.levels)
-        )
-        return (
-            f"<Graph>\n"
-            f"  Objects: {self.objects}\n"
-            f"{levels_str}\n"
-        )
-
-    __repr__ = __str__
 
     def expand_graph(self):
         """Expands the graph by a level"""
@@ -938,7 +911,7 @@ class Graph:
                 return False
         return True
 
-    
+
 class GraphPlan:
     """
     Class for formulation GraphPlan algorithm
@@ -950,20 +923,6 @@ class GraphPlan:
         self.graph = Graph(planning_problem)
         self.no_goods = []
         self.solution = []
-        
-    def __str__(self):
-        sol_str = (
-            "No solution found"
-            if not self.solution
-            else f"Solution with {len(self.solution)} steps"
-        )
-        return (
-            f"<GraphPlan>\n"
-            f"  Nogoods: {len(self.no_goods)}\n"
-            f"  {sol_str}\n"
-        )
-
-    __repr__ = __str__
 
     def check_leveloff(self):
         """Checks if the graph has levelled off"""
@@ -1040,7 +999,6 @@ class GraphPlan:
 
         while True:
             self.graph.expand_graph()
-            print(self.graph)
             if (self.goal_test(self.graph.levels[-1].kb) and self.graph.non_mutex_goals(
                     self.graph.planning_problem.goals, -1)):
                 solution = self.extract_solution(self.graph.planning_problem.goals, -1)
@@ -1051,13 +1009,22 @@ class GraphPlan:
                 return None
 
 
+def print_nested_list(nested_list, indent=0):
+    """Recursively prints a nested list with indentation to show structure."""
+    for item in nested_list:
+        if isinstance(item, list):  # If item is a list, recurse deeper
+            print(" " * indent + "- List:")
+            print_nested_list(item, indent + 4)
+        else:
+            print(" " * indent + f"- {item}")
+
+pnl = print_nested_list
+
+
 class Linearize:
 
     def __init__(self, planning_problem):
         self.planning_problem = planning_problem
-        
-    def __str__(self):
-        return f"<Linearize for problem: {self.planning_problem}>"
 
     def filter(self, solution):
         """Filter out persistence actions from a solution"""
@@ -1071,116 +1038,97 @@ class Linearize:
             new_solution.append(new_section)
         return new_solution
 
-    """
     def orderlevel(self, level, planning_problem):
-        "Return valid linear order of actions for a given level"
+        """Return valid linear order of actions for a given level"""
 
         for permutation in itertools.permutations(level):
             temp = copy.deepcopy(planning_problem)
             count = 0
+            ## print(f"PERMUTATION: {permutation}")  ## Bill's hack
             for action in permutation:
                 try:
+                    # print(f"TRY ACTION: {action}")  ## Bill's hack
                     temp.act(action)
                     count += 1
+                    # print(f"TRY ACTION: {action} SUCCESS!")  ## Bill's hack
                 except:
+                    # print(f"TRY ACTION: {action} FAIL!")  ## Bill's hack
                     count = 0
                     temp = copy.deepcopy(planning_problem)
-                    break
+                    continue     ##break
             if count == len(permutation):
+                print(f"SUCCESSFUL PARTIAL PLAN: {level}")  ## Bill's hack
                 return list(permutation), temp
-        return None
-    """
-    
-    def orderlevel(self, level, planning_problem):
-        "Return valid linear order of actions for a given level"
+        print(f"NO SUCCESSFUL PARTIAL PLAN: {level}")  ## Bill's hack                
+        return None, planning_problem  ## added planning_problem... its gotta return a planning problem and start over if it fails, but maybe this is saying return fail and the unsolved planning problem
 
-        # Iterate through all permutations of actions in the level
-        for permutation in itertools.permutations(level):
-            # Create a deep copy of the planning problem for this permutation
-            temp = copy.deepcopy(planning_problem)
-            is_valid_permutation = True
-
-            # Attempt to apply each action in the current permutation
-            for action in permutation:
-                try:
-                    temp.act(action)
-                except Exception:
-                    # If an action fails, this entire permutation is invalid.
-                    is_valid_permutation = False
-                    break  # Exit the inner loop immediately and try the next permutation.
-
-            # If the inner loop completed without any failures
-            if is_valid_permutation:
-                # This is a valid linear ordering for the current level
-                return list(permutation), temp
-
-        # If no valid permutation was found after checking all possibilities
-        return None, None
-
-    """
     def execute(self):
-        "Finds total-order solution for a planning graph"
+        """Finds total-order solution for a planning graph"""
 
         graphPlan_solution = GraphPlan(self.planning_problem).execute()
-        filtered_solution = self.filter(graphPlan_solution)
-        ordered_solution = []
-        planning_problem = self.planning_problem
-        for level in filtered_solution:
-            level_solution, planning_problem = self.orderlevel(level, planning_problem)
-            for element in level_solution:
-                ordered_solution.append(element)
 
+        ## Bill's stuff from playing around
+        ## print(f"UNFILTERED PLAN: {graphPlan_solution}")  ## Bill's hack
+        ## pnl(graphPlan_solution)
+        ## for possible_plan in graphPlan_solution:
+        ##    possible_plan = [possible_plan]
+        ##    filtered_possible_plan = self.filter(possible_plan)
+        ##    print(f"POSSIBLE PLAN: {filtered_possible_plan}")  ## Bill's hack
+        ## flattened_graphplan = self.filter(graphPlan_solution)
+        ## flattened_graphplan = sum(graphPlan_solution, [])  ## Bill's hack
+        ## flattened_graphplan = sum(flattened_graphplan, [])  ## Bill's hack
+        ##  flattened_graphplan = [flattened_graphplan]
+        ## graphPlan_solution = [flattened_graphplan]  ## Bill's hack
+        ##  pnl(flattened_graphplan)
+
+        ## I think I have to go over all permutations of possbile partial graphplans
+        
+        for possible_plan in itertools.permutations(graphPlan_solution):   ## Bill's hack
+
+            ## possible_plan = [possible_plan]  ## Bill's hack, stuff below expect a list with one element which is also a list
+            ## filtered_solution = self.filter(graphPlan_solution)   # original
+
+            filtered_solution = self.filter(possible_plan)   # my mod
+            
+            ## filtered_solution = self.filter(possible_plan)  # mod
+            ## print(f"\nFILTERED PLAN: {filtered_solution}")  ## Bill's hack
+            ## pnl(filtered_solution)
+            ## filtered_solution = possible_plan
+            
+            ordered_solution = []
+            planning_problem = self.planning_problem
+            for level in filtered_solution:
+
+                ## print(f"TRYING SOLUTION LEVEL: {level}")  ## Bill's hack
+
+                ## the below is a key line, the key line
+                level_solution, planning_problem = self.orderlevel(level, planning_problem)  ## actions get applied
+                if not level_solution:  # This checks if level_solution is None or an empty list
+                    continue   ## Bill's hack!!  if empty, continue looking.  
+
+                print(f"LEVEL SOLUTION: {level_solution}")  ## Bill's hack
+                print(f"CURRENT STATE: {planning_problem.initial}\n")  ## Bill's hack                
+                ## for action in level_solution:
+                ##    print(f"APPLY ACTION: {action}")  ## Bill's hack                    
+                ##    planning_problem.act(action)           # complete guess, apply action to the problem and keep going
+
+                ## I think we need to apply the plan to the planning problem and modify it
+                for element in level_solution:   
+                    ordered_solution.append(element)
+
+            if not ordered_solution:
+                continue
+            else:
+                break
+            
         return ordered_solution
-    """
+
+
     
-    def execute(self):
-        """Finds a total-order solution for a planning graph."""
-        # This might return multiple solutions, let's call it a list of "raw plans"
-        raw_plans = GraphPlan(self.planning_problem).execute()
-
-        if not raw_plans:
-            return None  # No plans were found by GraphPlan
-
-        # Iterate through each raw plan returned by GraphPlan
-        for raw_plan in raw_plans:
-            # The filter and ordering logic should be applied to each plan one by one.
-            # This is a good place for a helper function.
-            ordered_plan = self._attempt_linearization(raw_plan)
-            if ordered_plan:
-                return ordered_plan  # Return the first successful plan
-
-        return None  # No valid linearization was found for any of the plans
-
-    def _attempt_linearization(self, raw_plan):
-        """Helper function to linearize a single raw plan."""
-        # Filter out persistence actions
-        filtered_plan = self._filter(raw_plan)
-        ordered_solution = []
-        planning_problem = copy.deepcopy(self.planning_problem)
-
-        # Order actions level by level
-        for level in filtered_plan:
-            level_solution, planning_problem = self.orderlevel(level, planning_problem)
-            if level_solution is None:
-                return None  # Failed to order this plan, try the next one
-            ordered_solution.extend(level_solution)
-        return ordered_solution
-
-    def _filter(self, raw_plan):
-        """Filter out persistence actions from a single raw plan."""
-        new_solution = []
-        for section in raw_plan:
-            new_section = []
-            for operation in section:
-                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
-                    new_section.append(operation)
-            new_solution.append(new_section)
-        return new_solution
-
 
 def linearize(solution):
     """Converts a level-ordered solution into a linear solution"""
-    
+
     linear_solution = []
     for section in solution[0]:
         for operation in section:
