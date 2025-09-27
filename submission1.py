@@ -97,9 +97,24 @@ if __name__ == "__main__":
     #goal_state = 'In(C1, D2)'
     #print(logisticsPlanCustom(initial_state, goal_state))
 
-    initial_state = 'In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)'
-    goal_state = "In(C1, D1) & In(C3, R1) & In(R1, D3)"
-    print(logisticsPlanCustom(initial_state, goal_state))
+    #initial_state = 'In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)'
+    #goal_state = "In(C1, D1) & In(C3, R1) & In(R1, D3)"
+    #print(logisticsPlanCustom(initial_state, goal_state))
+   
+    # NOW WORKS: issue was in problem domain definition 
+    #P = double_tennis_problem()
+    #print(GraphPlan(P).execute())
+
+    P = shopping_problem()
+    #print(GraphPlan(P).execute())
+    """
+    [[[PItem(Milk), PSells(SM, Milk), PSells(SM, Banana), PStore(HW), 
+    PItem(Banana), PStore(SM), Go(Home, HW), PSells(HW, Drill), 
+    PItem(Drill), Go(Home, SM)], 
+    [Buy(Drill, HW), Buy(Banana, SM), Buy(Milk, SM)]]]
+    """
+    
+    print(Linearize(P).execute())
 
 """
 Standard logistics environment

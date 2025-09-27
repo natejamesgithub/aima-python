@@ -4,7 +4,7 @@ from planning import *
 from logic import *
 
 import pytest
-import submission_1 as sub
+import submission1 as sub
 
 
 def test_blocksworld_manual():
@@ -35,6 +35,13 @@ def test_simple_blocks_world():
 
 def test_shopping_problem():
     P = shopping_problem()
+    #print(GraphPlan(P).execute())
+    """
+    [[[PItem(Milk), PSells(SM, Milk), PSells(SM, Banana), PStore(HW), 
+    PItem(Banana), PStore(SM), Go(Home, HW), PSells(HW, Drill), 
+    PItem(Drill), Go(Home, SM)], 
+    [Buy(Drill, HW), Buy(Banana, SM), Buy(Milk, SM)]]]
+    """
     assert isinstance(Linearize(P).execute(), list)
 
 def test_socks_and_shoes():
@@ -43,6 +50,7 @@ def test_socks_and_shoes():
 
 def test_double_tennis_problem():
     P = double_tennis_problem()
+    #print(GraphPlan(P).execute())
     assert isinstance(Linearize(P).execute(), list)
 
 

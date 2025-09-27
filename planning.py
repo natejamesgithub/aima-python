@@ -476,7 +476,7 @@ def shopping_problem():
     >>>
     """
 
-    return PlanningProblem(initial='At(Home) & Sells(SM, Milk) & Sells(SM, Banana) & Sells(HW, Drill)',
+    return PlanningProblem(initial='At(Home)',
                            goals='Have(Milk) & Have(Banana) & Have(Drill)',
                            actions=[Action('Buy(x, store)',
                                            precond='At(store) & Sells(store, x)',
@@ -487,7 +487,8 @@ def shopping_problem():
                                            effect='At(y) & ~At(x)',
                                            domain='Place(x) & Place(y)')],
                            domain='Place(Home) & Place(SM) & Place(HW) & Store(SM) & Store(HW) & '
-                                  'Item(Milk) & Item(Banana) & Item(Drill)')
+                                  'Item(Milk) & Item(Banana) & Item(Drill) & '
+                                  'Sells(SM, Milk) & Sells(SM, Banana) & Sells(HW, Drill)')
 
 
 def socks_and_shoes():
@@ -550,6 +551,12 @@ def double_tennis_problem():
     >>>
     """
 
+    # The authors mistakenly used `a` rather than `A`, and also set it to two locations?
+    # This is the original function, but it's faulty. Although, it does technically pass pytests? Just for some reason, not graphPlan...
+    # I believe this fails GraphPlan because of the way it extracts objects, which does not include objects that only exist in goal states?
+    #  - Therefore the GraphPlan fails, but the pytests that manuallys solve pass?
+    #  - To explain why At(a, LeftNet), At(a,RightNet) passes, perhaps since it doesn't see `a` in objects, it takes it as a variable? Where any object can make it true? Which A and B do?
+    """
     return PlanningProblem(
         initial='At(A, LeftBaseLine) & At(B, RightNet) & Approaching(Ball, RightBaseLine) & Partner(A, B) & Partner(B, A)',
         goals='Returned(Ball) & At(a, LeftNet) & At(a, RightNet)',
@@ -559,8 +566,57 @@ def double_tennis_problem():
                  Action('Go(actor, to, loc)',
                         precond='At(actor, loc)',
                         effect='At(actor, to) & ~At(actor, loc)')])
+    """
+    
+    """
+    [Figure 11.10] DOUBLE-TENNIS-PROBLEM
 
+    A multiagent planning problem involving two partner tennis players
+    trying to return an approaching ball and repositioning around in the court.
+    """
 
+    # This works, but adds extra unnecessary detail to the problem
+    """
+    return PlanningProblem(
+        initial='At(A, LeftBaseLine) & At(B, RightNet) & Approaching(Ball, RightBaseLine) & Partner(A, B) & Partner(B, A)',
+        goals='Returned(Ball) & At(A, LeftNet) & At(B, RightNet)',
+        actions=[Action('Hit(actor, Ball, loc)',
+                        precond='Approaching(Ball, loc) & At(actor, loc)',
+                        effect='Returned(Ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)',
+                        domain='Player(actor) & CourtLoc(to) & CourtLoc(loc)')],
+        domain='Player(A) & Player(B) & Ball(Ball) & CourtLoc(LeftBaseLine) & CourtLoc(RightBaseLine) & CourtLoc(LeftNet) & CourtLoc(RightNet)'
+    )
+    """
+
+    # THIS DOESNT WORK BECAUSE LeftNet isn't recognized as an object
+    """
+    return PlanningProblem(
+        initial='At(A, LeftBaseLine) & At(B, RightNet) & Approaching(Ball, RightBaseLine) & Partner(A, B) & Partner(B, A)',
+        goals='Returned(Ball) & At(A, LeftNet) & At(B, RightNet)',
+        actions=[Action('Hit(actor, Ball, loc)',
+                        precond='Approaching(Ball, loc) & At(actor, loc)',
+                        effect='Returned(Ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)')])
+    """
+    
+    return PlanningProblem(
+        initial='At(A, LeftBaseLine) & At(B, RightNet) & Approaching(Ball, RightBaseLine) & Partner(A, B) & Partner(B, A)',
+        goals='Returned(Ball) & At(A, LeftNet) & At(B, RightNet)',
+        actions=[Action('Hit(actor, Ball, loc)',
+                        precond='Approaching(Ball, loc) & At(actor, loc)',
+                        effect='Returned(Ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)')],
+        domain='CourtLoc(LeftNet) & CourtLoc(RightNet) & CourtLoc(LeftBaseline) & CourtLoc(RightBaseline)'
+    )
+
+    
 class ForwardPlan(search.Problem):
     """
     [Section 10.2.1]
@@ -1091,6 +1147,7 @@ class Linearize:
         return None
     """
     
+    """
     def orderlevel(self, level, planning_problem):
         "Return valid linear order of actions for a given level"
 
@@ -1116,8 +1173,8 @@ class Linearize:
 
         # If no valid permutation was found after checking all possibilities
         return None, None
-
     """
+
     def execute(self):
         "Finds total-order solution for a planning graph"
 
@@ -1127,14 +1184,17 @@ class Linearize:
         planning_problem = self.planning_problem
         for level in filtered_solution:
             level_solution, planning_problem = self.orderlevel(level, planning_problem)
+            # Handle empty level_solutions
+            if level_solution is None:
+                continue
             for element in level_solution:
                 ordered_solution.append(element)
 
         return ordered_solution
-    """
     
+    """
     def execute(self):
-        """Finds a total-order solution for a planning graph."""
+        "Finds a total-order solution for a planning graph."
         # This might return multiple solutions, let's call it a list of "raw plans"
         raw_plans = GraphPlan(self.planning_problem).execute()
 
@@ -1152,7 +1212,7 @@ class Linearize:
         return None  # No valid linearization was found for any of the plans
 
     def _attempt_linearization(self, raw_plan):
-        """Helper function to linearize a single raw plan."""
+        "Helper function to linearize a single raw plan."
         # Filter out persistence actions
         filtered_plan = self._filter(raw_plan)
         ordered_solution = []
@@ -1167,7 +1227,7 @@ class Linearize:
         return ordered_solution
 
     def _filter(self, raw_plan):
-        """Filter out persistence actions from a single raw plan."""
+        "Filter out persistence actions from a single raw plan."
         new_solution = []
         for section in raw_plan:
             new_section = []
@@ -1176,6 +1236,7 @@ class Linearize:
                     new_section.append(operation)
             new_solution.append(new_section)
         return new_solution
+    """
 
 
 def linearize(solution):
