@@ -106,7 +106,9 @@ if __name__ == "__main__":
     #print(GraphPlan(P).execute())
 
     P = shopping_problem()
-    #print(GraphPlan(P).execute())
+    #gplan = GraphPlan(P).execute()
+    #print(gplan)
+    print(Linearize(P).execute())
     """
     [[[PItem(Milk), PSells(SM, Milk), PSells(SM, Banana), PStore(HW), 
     PItem(Banana), PStore(SM), Go(Home, HW), PSells(HW, Drill), 
@@ -114,7 +116,7 @@ if __name__ == "__main__":
     [Buy(Drill, HW), Buy(Banana, SM), Buy(Milk, SM)]]]
     """
     
-    print(Linearize(P).execute())
+    #print(Linearize(P).execute())
 
 """
 Standard logistics environment
