@@ -61,31 +61,6 @@ def logisticsPlan():
     return linearize(GraphPlan(planning_problem).execute())
 """
 
-def logisticsPlanCustom(initial_state=None, goal_state=None):
-    if initial_state == None: 
-        initial_state = 'In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)'
-    if goal_state == None:
-        raise ValueError("Goal must be defined")
-
-    planning_problem = \
-    PlanningProblem(initial = initial_state,
-                    goals = goal_state,
-                    actions=[Action('PickUp(r, c, d)',
-                                    precond='In(r, d) & In (c, d) & ~Holding(r)',
-                                    effect='Holding(r) & ~In(c, d) & In(c, r)', 
-                                    domain='Robot(r) & Place(d) & Container(c)'),
-                             Action('PutDown(r, c, d)', 
-                                    precond='In(r, d) & In(c, r) & Holding(r)',
-                                    effect='~Holding(r) & ~In(c, r) & In(c, d)',
-                                    domain='Robot(r) & Place(d) & Container(c)'),
-                            Action('Move(r, d_start, d_end)',
-                                   precond='In(r,d_start)',
-                                   effect='~In(r, d_start) & In(r, d_end)',
-                                   domain='Robot(r) & Place(d_start) & Place(d_end)')],
-                domain='Container(C1) & Container(C2) & Container(C3) & Place(D1) & Place(D2) & Place(D3) & Robot(R1)')
-    # END_YOUR_CODE
-
-    return Linearize(planning_problem).execute()
 
 if __name__ == "__main__":
     
@@ -105,10 +80,10 @@ if __name__ == "__main__":
     #P = double_tennis_problem()
     #print(GraphPlan(P).execute())
 
-    P = shopping_problem()
+    #P = shopping_problem()
     #gplan = GraphPlan(P).execute()
     #print(gplan)
-    print(Linearize(P).execute())
+    #print(Linearize(P).execute())
     """
     [[[PItem(Milk), PSells(SM, Milk), PSells(SM, Banana), PStore(HW), 
     PItem(Banana), PStore(SM), Go(Home, HW), PSells(HW, Drill), 
@@ -118,6 +93,11 @@ if __name__ == "__main__":
     
     #print(Linearize(P).execute())
 
+    #P = air_cargo()
+    P = double_tennis_problem()
+    print(GraphPlan(P).execute())
+    #Linearize(P).execute()
+ 
 """
 Standard logistics environment
 Container(C1) & Container(C2) & Container(C3) & Place(D1) & Place(D2) & Place(D3) & Robot(R1)
