@@ -189,3 +189,7 @@ Level 1:
 
 
     I think we conclude at s2 because we can satisfy with eat -> bake
+
+
+
+    It's frustrating that they don't differentiate between state and action levels

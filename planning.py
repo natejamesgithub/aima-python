@@ -876,7 +876,7 @@ class Level:
         self.mutex = []
         
         self.is_first_layer = is_first_layer
-        self.prior_level = None
+        self.next_state_mutexes = []
         
     def __call__(self, actions, objects):
         self.build(actions, objects)
@@ -892,6 +892,7 @@ class Level:
             f"  Current State: {{{state_str}}}\n"
             f"  Actions: {{{action_str}}}\n"
             f"  Mutex: {{{mutex_str}}}\n"
+            f"  Next state mutexes: {{{self.next_state_mutexes}}}\n"
         )
 
     __repr__ = __str__
@@ -914,7 +915,8 @@ class Level:
         "This function is only entered after state, actions at this level are computed."
         "Therefore, we're computing it for the current state and current (state+1) action layer"
         
-        breakpoint()
+        #breakpoint()
+        self.mutex = [] # clear out effects from state mutex prior computation
 
         # Inconsistent effects - one action adds a literal that another deletes
         pos_nsl, neg_nsl = self.separate(self.next_state_links)
@@ -928,9 +930,6 @@ class Level:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
                                 
-        breakpoint()
-        
-
         # Interference will be calculated with the last step
         # Interference - One action deletes a precondition or effect of another
         pos_csl, neg_csl = self.separate(self.current_state_links)
@@ -945,9 +944,6 @@ class Level:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
                                 
-
-        breakpoint()
-
         # Only consider actual actions (not propositions)
         """
         action_keys = [a for a in self.next_action_links.keys() if not a.op.startswith("P")]
@@ -996,33 +992,46 @@ class Level:
                 state_mutex.append({next_state_0[0], next_state_1[0]})
         """
         
+        #breakpoint()
+    
+    
+    def populate_prop_mutexes(self):
+        "Compute the next level's proposition mutexes based on our current action mutexes"
         # Inconsistent support - two props cannot be true given competing supporting actions
+        
+        # self.next_action_links is a map from {next_state: [actions_leading_there]}
+        # We want to choose two next states, and add a mutex if all actions leading there are mutex
         state_mutex = []
-        for pair in self.mutex:  # mutex is currently action-action mutexes
-            a1, a2 = list(pair)
-            #print("mutex pair: ", a1,a2)
-
-            # Get all effects of each action
-            effects_a1 = self.next_action_links.get(a1, [])
-            effects_a2 = self.next_action_links.get(a2, [])
+        next_state_pairs = itertools.combinations(self.next_state_links.keys(), 2)
+        for next_state_pair in list(next_state_pairs):
+            s1, s2 = list(next_state_pair)
+            acts_to_s1 = self.next_state_links.get(s1, [])
+            acts_to_s2 = self.next_state_links.get(s2, [])
             
-            #print("ef1: ", effects_a1)
-            #print("ef2: ", effects_a2)
+            # ensure our mutexes only apply to pairs, not single states. 
+            if acts_to_s1 == [] or acts_to_s2 == []:
+                continue
+            
+            # if any two actions that lead to these states is not mutex, do not add a mutex to these states.
+            if not any([{a1,a2} not in self.mutex and {a2,a1} not in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
+                mutex_pair = {s1, s2}
+                if mutex_pair not in state_mutex:
+                    state_mutex.append(mutex_pair)
 
-            # For every effect pair, mark propositions as mutex
-            for p1 in effects_a1:
-                for p2 in effects_a2:
-                    mutex_pair = {p1, p2}
+        # If there are pairs of propositions that are negations of each other, they need to be mutex
+        for s1i in range(len(self.current_state)):
+            for s2i in range(1,len(self.current_state)):
+                s1, s2 = self.current_state[s1i], self.current_state[s2i]
+                if repr(s2)[0:3] == "Not" and repr(s1) == repr(s2)[3:] or repr(s1)[0:3] == "Not" and repr(s1)[3:] == repr(s2):
+                    mutex_pair = {s1, s2}
                     if mutex_pair not in state_mutex:
                         state_mutex.append(mutex_pair)
-                        
-        #breakpoint()
-        self.state_mutex = state_mutex
-                
-        if self.prior_level and self.prior_level.state_mutex:
-            self.mutex = self.mutex + self.prior_level.state_mutex
         
-        #print(self.current_state_links, self.current_action_links)
+
+        #breakpoint()
+        self.next_state_mutexes = state_mutex
+        return state_mutex
+
 
     def build(self, actions, objects):
         """Populates the lists and dictionaries containing the state action dependencies"""
@@ -1072,7 +1081,9 @@ class Level:
 
         # next_state_links.keys() will give the valid next states (the values would be all the actions that could cause it)
         new_kb = FolKB(list(set(self.next_state_links.keys())))
-        return Level(new_kb)
+        new_level = Level(new_kb)
+        
+        return new_level
 
     """
     def deduplify(self):
@@ -1129,27 +1140,14 @@ class Graph:
     def expand_graph(self):
         """Expands the graph by a level"""
 
-        #last_level = self.levels[-1]
-        #last_level(self.planning_problem.actions, self.objects)
-        #self.levels.append(last_level.perform_actions())
+        last_level = self.levels[-1]
+        last_level(self.planning_problem.actions, self.objects)
+        new_level = last_level.perform_actions()
+        new_level.mutex = last_level.populate_prop_mutexes()
+        self.levels.append(new_level)
 
         #breakpoint()
         
-        """
-        if hasattr(self, "notFirstRun"):  # not the very first iteration
-            new_level = self.levels[-1].perform_actions()
-            if len(self.levels) > 0:
-                new_level.prior_level = self.levels[-1]
-            self.levels.append(new_level)
-        else:
-            self.notFirstRun = True
-
-        # then continue as usual
-        last_level = self.levels[-1]
-        last_level(self.planning_problem.actions, self.objects)
-        """
-
-
     def non_mutex_goals(self, goals, index):
         "Checks whether the goals are mutually exclusive"
 
