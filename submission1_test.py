@@ -23,7 +23,7 @@ def verify_solution(P):
         P.act(expr(act))
     assert P.goal_test() == True
 
-def ptest_air_cargo():
+def test_air_cargo():
     P = air_cargo()
     verify_solution(P)
 
@@ -31,7 +31,7 @@ def test_spare_tire():
     P = spare_tire()
     verify_solution(P)
     
-def ptest_three_block_tower():
+def test_three_block_tower():
     P = three_block_tower()
     verify_solution(P)
 
@@ -80,7 +80,7 @@ def test_logistics_plan_valid(goal_state):
     "In(C1, D3) & In(C2, D3) & In(C3, D3)",
     "In(C1, D2) & In(C3, D3) & In(C2, D1)",
 ])
-def ptest_logistics_plan_no_plan(goal_state):
+def test_logistics_plan_no_plan(goal_state):
     """These are known to have no valid plan."""
     init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
     P = logisticsPlanCustom(init, goal_state)

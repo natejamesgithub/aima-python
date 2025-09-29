@@ -877,6 +877,7 @@ class Level:
         
         self.is_first_layer = is_first_layer
         self.next_state_mutexes = []
+        self.state_mutexes = []
         
     def __call__(self, actions, objects):
         self.build(actions, objects)
@@ -916,6 +917,7 @@ class Level:
         "Therefore, we're computing it for the current state and current (state+1) action layer"
         
         #breakpoint()
+        self.state_mutexes = self.mutex # save state mutexes
         self.mutex = [] # clear out effects from state mutex prior computation
 
         # Inconsistent effects - one action adds a literal that another deletes
@@ -930,11 +932,15 @@ class Level:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
                                 
-        # Interference will be calculated with the last step
+        # Interference will be calculated with the last step ???
         # Interference - One action deletes a precondition or effect of another
-        pos_csl, neg_csl = self.separate(self.current_state_links)
+        
 
         # Competing needs - preconditions of two actions are mutex at previous proposition layer
+        """
+        pos_csl, neg_csl = self.separate(self.current_state_links)
+        # Why are we looking at syntactic components (negation)???
+        breakpoint()
         for pos_precond in pos_csl:
             for neg_precond in neg_csl:
                 new_neg_precond = Expr(neg_precond.op[3:], *neg_precond.args)
@@ -943,9 +949,36 @@ class Level:
                         for b in self.current_state_links[neg_precond]:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
-                                
-        # Only consider actual actions (not propositions)
         """
+         
+        # Competing Needs
+        # self.current_state_links = map from current state vars -> actions applicable
+        # self.current_action_links = map from current actions -> starting states
+        
+        # Implement here: Iterate over all valid pairs of actions, and if the states they come from are mutex (use self.state_mutexes), add a mutex pair to self.mutex
+        # Competing Needs - two actions are mutex if any of their preconditions are mutex at the previous state level
+        for a1, a2 in itertools.combinations(self.current_action_links.keys(), 2):
+            preconds_a1 = self.current_action_links[a1] # states
+            preconds_a2 = self.current_action_links[a2]
+            
+            #if len(preconds_a1) > 1 or len(preconds_a2) > 1:
+            #    print("An action has multiple preconditions (state)? Is the following logic implemented correctly? I think so")
+
+            # check all pairs of preconditions
+            for p in preconds_a1:
+                for q in preconds_a2:
+                    if {p, q} in self.state_mutexes:
+                        mutex_pair = {a1, a2}
+                        if mutex_pair not in self.mutex:
+                            self.mutex.append(mutex_pair)
+                        # no need to keep checking once we've marked them
+                        break
+                else:
+                    continue
+                break                      
+        
+        """
+        # Only consider actual actions (not propositions)
         action_keys = [a for a in self.next_action_links.keys() if not a.op.startswith("P")]
 
         if self.is_first_layer:
