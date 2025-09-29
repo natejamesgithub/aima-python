@@ -90,13 +90,13 @@ if __name__ == "__main__":
     PItem(Drill), Go(Home, SM)], 
     [Buy(Drill, HW), Buy(Banana, SM), Buy(Milk, SM)]]]
     """
-    
-    #print(Linearize(P).execute())
 
+    #P = shopping_problem()
     #P = air_cargo()
-    P = double_tennis_problem()
+    #P = double_tennis_problem()
+    P = have_cake_and_eat_cake_too()
     print(GraphPlan(P).execute())
-    #Linearize(P).execute()
+    #print(Linearize(P).execute())
  
 """
 Standard logistics environment

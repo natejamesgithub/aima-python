@@ -13,7 +13,6 @@ from logic import FolKB, conjuncts, unify_mm, associate, SAT_plan, cdcl_satisfia
 from search import Node
 from utils import Expr, expr, first
 
-
 class PlanningProblem:
     """
     Planning Domain Definition Language (PlanningProblem) used to define a search problem.
@@ -468,7 +467,7 @@ def have_cake_and_eat_cake_too():
     >>>
     """
 
-    return PlanningProblem(initial='Have(Cake)',
+    return PlanningProblem(initial='Have(Cake) & ~Eaten(Cake)',
                            goals='Have(Cake) & Eaten(Cake)',
                            actions=[Action('Eat(Cake)',
                                            precond='Have(Cake)',
@@ -627,18 +626,31 @@ def double_tennis_problem():
                         precond='At(actor, loc)',
                         effect='At(actor, to) & ~At(actor, loc)')])
     """
-    
+
+    """
     return PlanningProblem(
-        initial='At(A, LeftBaseLine) & At(B, RightNet) & Approaching(Ball, RightBaseLine) & Partner(A, B) & Partner(B, A)',
-        goals='Returned(Ball) & At(A, LeftNet) & At(B, RightNet)',
-        actions=[Action('Hit(actor, Ball, loc)',
-                        precond='Approaching(Ball, loc) & At(actor, loc)',
-                        effect='Returned(Ball)'),
+        initial='At(A, LeftBaseline) & At(B, RightNet) & Approaching(ball, RightBaseline)',
+        goals='At(A, LeftNet) & At(B, RightBaseline) & Returned(ball)',
+        actions=[Action('Hit(actor, ball, loc)',
+                        precond='Approaching(ball, loc) & At(actor, loc) & CourtLoc(loc) & IsBall(ball) & isActor(actor)',
+                        effect='Returned(ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc) & CourtLoc(loc) & CourtLoc(to) & IsActor(actor)',
+                        effect='At(actor, to) & ~At(actor, loc)')],
+        domain='CourtLoc(LeftNet) & CourtLoc(RightNet) & CourtLoc(LeftBaseline) & CourtLoc(RightBaseline) & IsBall(ball) & IsActor(A) & IsActor(B)'
+    )
+    """
+
+    return PlanningProblem(
+        initial='At(A, LeftNet) & At(B, RightNet) & Approaching(ball, RightBaseline)',
+        goals='At(A, LeftBaseline) & At(B, LeftNet) & Returned(ball)',
+        actions=[Action('Hit(actor, ball, loc)',
+                        precond='Approaching(ball, loc) & At(actor, loc)',
+                        effect='Returned(ball)'),
                  Action('Go(actor, to, loc)',
                         precond='At(actor, loc)',
                         effect='At(actor, to) & ~At(actor, loc)')],
-        domain='CourtLoc(LeftNet) & CourtLoc(RightNet) & CourtLoc(LeftBaseline) & CourtLoc(RightBaseline)'
-    )
+        domain="Loc(LeftBaseline)")
 
     
 class ForwardPlan(search.Problem):
@@ -837,7 +849,7 @@ class Level:
     states as pre-condition.
     """
 
-    def __init__(self, kb):
+    def __init__(self, kb, is_first_layer=False):
         """Initializes variables to hold state and action details of a level"""
 
         self.kb = kb
@@ -863,11 +875,13 @@ class Level:
         # mutually exclusive actions
         self.mutex = []
         
-        self.isfirstlayer = True
-
+        self.is_first_layer = is_first_layer
+        self.prior_level = None
+        
     def __call__(self, actions, objects):
         self.build(actions, objects)
         self.find_mutex()
+        #self.deduplify()
         
     def __str__(self):
         state_str = ", ".join(str(s) for s in self.current_state)
@@ -897,6 +911,10 @@ class Level:
     
     def find_mutex(self):
         "Finds mutually exclusive actions"
+        "This function is only entered after state, actions at this level are computed."
+        "Therefore, we're computing it for the current state and current (state+1) action layer"
+        
+        breakpoint()
 
         # Inconsistent effects - one action adds a literal that another deletes
         pos_nsl, neg_nsl = self.separate(self.next_state_links)
@@ -909,6 +927,9 @@ class Level:
                         for b in self.next_state_links[negeff]:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
+                                
+        breakpoint()
+        
 
         # Interference will be calculated with the last step
         # Interference - One action deletes a precondition or effect of another
@@ -923,11 +944,16 @@ class Level:
                         for b in self.current_state_links[neg_precond]:
                             if {a, b} not in self.mutex:
                                 self.mutex.append({a, b})
+                                
+
+        breakpoint()
 
         # Only consider actual actions (not propositions)
+        """
         action_keys = [a for a in self.next_action_links.keys() if not a.op.startswith("P")]
 
-        if self.isfirstlayer:
+        if self.is_first_layer:
+            #breakpoint()
             for a1, a2 in itertools.combinations(action_keys, 2):
                 preconds_a1 = self.current_action_links.get(a1, [])
                 preconds_a2 = self.current_action_links.get(a2, [])
@@ -953,10 +979,12 @@ class Level:
                     mutex_pair = {a1, a2}
                     if mutex_pair not in self.mutex:  # <-- avoid duplicates
                         self.mutex.append(mutex_pair)
-                        
-            self.isfirstlayer = False
-        
+                     
+            self.is_first_layer = False
+        """
+            
         # Inconsistent support - two props cannot be true given competing supporting actions
+        """
         state_mutex = []
         for pair in self.mutex:
             next_state_0 = self.next_action_links[list(pair)[0]]
@@ -966,8 +994,33 @@ class Level:
                 next_state_1 = self.next_action_links[list(pair)[0]]
             if (len(next_state_0) == 1) and (len(next_state_1) == 1):
                 state_mutex.append({next_state_0[0], next_state_1[0]})
+        """
+        
+        # Inconsistent support - two props cannot be true given competing supporting actions
+        state_mutex = []
+        for pair in self.mutex:  # mutex is currently action-action mutexes
+            a1, a2 = list(pair)
+            #print("mutex pair: ", a1,a2)
 
-        self.mutex = self.mutex + state_mutex
+            # Get all effects of each action
+            effects_a1 = self.next_action_links.get(a1, [])
+            effects_a2 = self.next_action_links.get(a2, [])
+            
+            #print("ef1: ", effects_a1)
+            #print("ef2: ", effects_a2)
+
+            # For every effect pair, mark propositions as mutex
+            for p1 in effects_a1:
+                for p2 in effects_a2:
+                    mutex_pair = {p1, p2}
+                    if mutex_pair not in state_mutex:
+                        state_mutex.append(mutex_pair)
+                        
+        #breakpoint()
+        self.state_mutex = state_mutex
+                
+        if self.prior_level and self.prior_level.state_mutex:
+            self.mutex = self.mutex + self.prior_level.state_mutex
         
         #print(self.current_state_links, self.current_action_links)
 
@@ -1015,12 +1068,36 @@ class Level:
                             self.next_state_links[new_clause] = [new_action]
 
     def perform_actions(self):
-        """Performs the necessary actions and returns a new Level"""
+        "Performs the necessary actions and returns a new Level"
 
         # next_state_links.keys() will give the valid next states (the values would be all the actions that could cause it)
         new_kb = FolKB(list(set(self.next_state_links.keys())))
         return Level(new_kb)
 
+    """
+    def deduplify(self):
+        "Remove duplicate entries from state, actions, links, and mutex lists."
+
+        # --- Deduplicate state ---
+        self.current_state = list(dict.fromkeys(self.current_state))  # order-preserving unique
+
+        # --- Deduplicate links (values are lists of actions/states) ---
+        for mapping in [self.current_action_links, self.current_state_links,
+                        self.next_action_links, self.next_state_links]:
+            for k, v in mapping.items():
+                mapping[k] = list(dict.fromkeys(v))  # unique but keep order
+
+        # --- Deduplicate mutex pairs ---
+        seen = set()
+        unique_mutex = []
+        for pair in self.mutex:
+            # turn {a,b} into a frozenset so it’s hashable
+            frozen = frozenset(pair)
+            if frozen not in seen:
+                seen.add(frozen)
+                unique_mutex.append(pair)
+        self.mutex = unique_mutex
+    """
 
 class Graph:
     """
@@ -1031,7 +1108,7 @@ class Graph:
     def __init__(self, planning_problem):
         self.planning_problem = planning_problem
         self.kb = FolKB(planning_problem.initial)
-        self.levels = [Level(self.kb)]
+        self.levels = [Level(self.kb, True)]
         self.objects = set(arg for clause in self.kb.clauses for arg in clause.args)
 
     def __call__(self):
@@ -1052,11 +1129,27 @@ class Graph:
     def expand_graph(self):
         """Expands the graph by a level"""
 
+        #last_level = self.levels[-1]
+        #last_level(self.planning_problem.actions, self.objects)
+        #self.levels.append(last_level.perform_actions())
+
+        #breakpoint()
+        
+        """
+        if hasattr(self, "notFirstRun"):  # not the very first iteration
+            new_level = self.levels[-1].perform_actions()
+            if len(self.levels) > 0:
+                new_level.prior_level = self.levels[-1]
+            self.levels.append(new_level)
+        else:
+            self.notFirstRun = True
+
+        # then continue as usual
         last_level = self.levels[-1]
         last_level(self.planning_problem.actions, self.objects)
-        self.levels.append(last_level.perform_actions())
+        """
 
-    """
+
     def non_mutex_goals(self, goals, index):
         "Checks whether the goals are mutually exclusive"
 
@@ -1065,8 +1158,8 @@ class Graph:
             if set(g) in self.levels[index].mutex:
                 return False
         return True
-    """
     
+    """
     def non_mutex_goals(self, goals, index):
         "Checks whether the goals are mutually exclusive recursively"
         
@@ -1096,7 +1189,8 @@ class Graph:
 
         for goal in goals:
             # if the goal has no supporting actions in previous level, can't satisfy
-            if goal not in level.next_state_links:
+            #breakpoint()
+            if goal not in level.next_state_links.keys():
                 return False
 
         # Generate all combinations of supporting actions
@@ -1119,7 +1213,7 @@ class Graph:
 
         # If no combination works, goals are mutex
         return False
-
+    """
     
 class GraphPlan:
     """
@@ -1132,6 +1226,9 @@ class GraphPlan:
         self.graph = Graph(planning_problem)
         self.no_goods = []
         self.solution = []
+        
+        global isFirstLayer
+        isFirstLayer = True
         
     def __str__(self):
         sol_str = (
@@ -1288,7 +1385,9 @@ class GraphPlan:
         return solution
     
     def goal_test(self, kb):
-        return all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
+        goal_achieved = all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
+        #print(goal_achieved)
+        return goal_achieved
 
     def execute(self):
         """Executes the GraphPlan algorithm for the given problem"""
@@ -1296,10 +1395,12 @@ class GraphPlan:
         print("Forward Search")
         while True:
             self.graph.expand_graph()
-            #print(self.graph)
+            print(self.graph)
+            print("Number of levels: ", len(self.graph.levels))
+            #breakpoint()
             if (self.goal_test(self.graph.levels[-1].kb) and self.graph.non_mutex_goals(
                     self.graph.planning_problem.goals, -1)):
-                #breakpoint()
+                
                 print("SOLVED, EXTRACTING SOLUTION")
                 print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
                 #self.graph.levels[-1](self.graph.planning_problem.actions, self.graph.objects)
@@ -1316,7 +1417,7 @@ class GraphPlan:
 
             #print(len(self.graph.levels))
             if len(self.graph.levels) >= 2 and self.check_leveloff():
-                breakpoint()
+                #breakpoint()
                 return None
 
 
