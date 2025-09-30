@@ -877,6 +877,8 @@ class Level:
         
         self.is_first_layer = is_first_layer
         self.next_state_mutexes = []
+        
+        # mutually exclusive states
         self.state_mutexes = []
         
     def __call__(self, actions, objects):
@@ -975,43 +977,48 @@ class Level:
                         break
                 else:
                     continue
-                break                      
+                break
+         
+        # Interference
+        # Example - in shopping, ensure Move(Home,HW) and Move(Home,SM) are both mutex in L0
         
-        """
-        # Only consider actual actions (not propositions)
-        action_keys = [a for a in self.next_action_links.keys() if not a.op.startswith("P")]
+        # current_action_links = current action -> current state map
 
-        if self.is_first_layer:
-            #breakpoint()
-            for a1, a2 in itertools.combinations(action_keys, 2):
-                preconds_a1 = self.current_action_links.get(a1, [])
-                preconds_a2 = self.current_action_links.get(a2, [])
-                effects_a1 = self.next_action_links.get(a1, [])
-                effects_a2 = self.next_action_links.get(a2, [])
+        savemutextemp = copy.copy(self.mutex)
 
-                # Check for interference
-                interference = False
-                for p1 in preconds_a1:
-                    if Expr("Not" + p1.op, *p1.args) in effects_a2:
-                        interference = True
-                for p2 in preconds_a2:
-                    if Expr("Not" + p2.op, *p2.args) in effects_a1:
-                        interference = True
-                for e1 in effects_a1:
-                    if Expr("Not" + e1.op, *e1.args) in effects_a2:
-                        interference = True
-                for e2 in effects_a2:
-                    if Expr("Not" + e2.op, *e2.args) in effects_a1:
-                        interference = True
-
-                if interference:
-                    mutex_pair = {a1, a2}
-                    if mutex_pair not in self.mutex:  # <-- avoid duplicates
-                        self.mutex.append(mutex_pair)
-                     
-            self.is_first_layer = False
-        """
+        for a1, a2 in itertools.combinations(self.next_action_links.keys(), 2):
+            preconds_a1 = self.current_action_links.get(a1, [])
+            preconds_a2 = self.current_action_links.get(a2, [])
+            effects_a1 = self.next_action_links.get(a1, [])
+            effects_a2 = self.next_action_links.get(a2, [])
             
+            # Check for interference
+            interference = False
+            # Check if a precondition of one action is negated by effect of another
+            for p1 in preconds_a1:
+                if Expr("Not" + p1.op, *p1.args) in effects_a2:
+                    interference = True
+            for p2 in preconds_a2:
+                if Expr("Not" + p2.op, *p2.args) in effects_a1:
+                    interference = True
+            # Check if effect of one action is negated by effect of other action (inconsistent effects?)
+            """
+            for e1 in effects_a1:
+                if Expr("Not" + e1.op, *e1.args) in effects_a2:
+                    interference = True
+            for e2 in effects_a2:
+                if Expr("Not" + e2.op, *e2.args) in effects_a1:
+                    interference = True
+            """
+
+            if interference:
+                mutex_pair = {a1, a2}
+                if mutex_pair not in self.mutex:  # <-- avoid duplicates
+                    self.mutex.append(mutex_pair)
+       
+        print([x for x in self.mutex if x not in savemutextemp])
+        #breakpoint() 
+        
         # Inconsistent support - two props cannot be true given competing supporting actions
         """
         state_mutex = []
@@ -1065,6 +1072,64 @@ class Level:
         self.next_state_mutexes = state_mutex
         return state_mutex
 
+    def prune_invalid_actions(self):
+        """Remove actions whose own preconditions are mutex (unsupportable)."""
+        to_remove = []
+
+        # Debug
+        # breakpoint()
+        # print("STATE_MUTEXES:", self.state_mutexes)
+
+        # Normalize state mutex set for fast membership checks:
+        # state_mutex_lookup contains frozenset pairs like frozenset({p,q})
+        state_mutex_lookup = set()
+        for m in self.state_mutexes:
+            # m might already be a set/frozenset or possibly a tuple depending on other code
+            state_mutex_lookup.add(frozenset(m))
+
+        for action, preconds in list(self.current_action_links.items()):
+            invalid = False
+            # show debug info if you want:
+            # print(action, preconds, list(itertools.combinations(preconds, 2)))
+
+            for p1, p2 in itertools.combinations(preconds, 2):
+                if frozenset({p1, p2}) in state_mutex_lookup:
+                    invalid = True
+                    break
+
+            if invalid:
+                to_remove.append(action)
+
+        # Debug
+        #print("REMOVING: ", to_remove)
+        #breakpoint()
+
+        # Remove invalid actions from all mappings
+        for action in to_remove:
+            # forward mappings
+            self.current_action_links.pop(action, None)
+            self.next_action_links.pop(action, None)
+
+            # reverse mapping: state -> actions (current_state_links)
+            for precond in list(self.current_state_links.keys()):
+                actions_for_pre = self.current_state_links.get(precond, [])
+                if action in actions_for_pre:
+                    actions_for_pre.remove(action)
+                    # if no more actions support this precond, drop the key
+                    if not actions_for_pre:
+                        self.current_state_links.pop(precond, None)
+                    else:
+                        self.current_state_links[precond] = actions_for_pre
+
+            # reverse mapping: next_state -> actions (next_state_links)
+            for effect in list(self.next_state_links.keys()):
+                actions_for_eff = self.next_state_links.get(effect, [])
+                if action in actions_for_eff:
+                    actions_for_eff.remove(action)
+                    if not actions_for_eff:
+                        self.next_state_links.pop(effect, None)
+                    else:
+                        self.next_state_links[effect] = actions_for_eff
 
     def build(self, actions, objects):
         """Populates the lists and dictionaries containing the state action dependencies"""
@@ -1075,7 +1140,7 @@ class Level:
             self.next_action_links[p_expr] = [clause]
             self.current_state_links[clause] = [p_expr]
             self.next_state_links[clause] = [p_expr]
-
+            
         for a in actions:
             num_args = len(a.args)
             possible_args = tuple(itertools.permutations(objects, num_args))
@@ -1174,9 +1239,10 @@ class Graph:
         """Expands the graph by a level"""
 
         last_level = self.levels[-1]
-        last_level(self.planning_problem.actions, self.objects)
-        new_level = last_level.perform_actions()
-        new_level.mutex = last_level.populate_prop_mutexes()
+        last_level(self.planning_problem.actions, self.objects) # populate state/actions/mutexes
+        last_level.prune_invalid_actions()
+        new_level = last_level.perform_actions() # Create new level
+        new_level.mutex = last_level.populate_prop_mutexes() # Populate the mutexes for the next state level to come
         self.levels.append(new_level)
 
         #breakpoint()
@@ -1284,7 +1350,6 @@ class GraphPlan:
         if check:
             return True
 
-    """
     def extract_solution(self, goals, index):
         "Extracts the solution"
         
@@ -1298,13 +1363,14 @@ class GraphPlan:
         #print(f"  Mutexes: \n    {level.mutex}")
 
         # Create all combinations of actions that satisfy the goal
+        #breakpoint()
         actions = []
         for goal in goals:
             actions.append(level.next_state_links[goal])
 
         all_actions = list(itertools.product(*actions))
         #print(f"  ALL ACTION COMBINATIONS at level {index-1}:")
-        #for a in all_actions:
+        ##for a in all_actions:
             #print("   ", a)
 
         # Filter out non-mutex actions
@@ -1312,15 +1378,17 @@ class GraphPlan:
         for action_tuple in all_actions:
             action_pairs = itertools.combinations(list(set(action_tuple)), 2)
             non_mutex_actions.append(list(set(action_tuple)))
-            acts = list(set(action_tuple))
+            #acts = list(set(action_tuple))
             #print(f"CHECKING tuple {acts} at level {index-1}")
-            for pair in action_pairs:
+            for pair in list(action_pairs):
                 #print("      testing pair", pair, "mutex?", frozenset(pair) in level.mutex)
                 if set(pair) in level.mutex:
                     non_mutex_actions.pop(-1)
-                    break
-                
+                    break #?
+        
         #print(f"NON-MUTEX ACTION SETS at level {index}: {non_mutex_actions}")
+        #print(len(non_mutex_actions), non_mutex_actions)
+        #breakpoint()
 
         # Recursion
         for action_list in non_mutex_actions:
@@ -1352,12 +1420,12 @@ class GraphPlan:
         for num, item in enumerate(solution):
             item.reverse()
             solution[num] = item
-
+            
         return solution
-        """
         
+    """
     def extract_solution(self, goals, index):
-        """Extracts the solution"""
+        "Extracts the solution"
 
         level = self.graph.levels[index]
         if not self.graph.non_mutex_goals(goals, index):
@@ -1414,11 +1482,13 @@ class GraphPlan:
             solution[num] = item
 
         return solution
+    """
     
     def goal_test(self, kb):
         goal_achieved = all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
         #print(goal_achieved)
         return goal_achieved
+    
 
     def execute(self):
         """Executes the GraphPlan algorithm for the given problem"""
@@ -1427,20 +1497,20 @@ class GraphPlan:
         while True:
             self.graph.expand_graph()
             print(self.graph)
-            print("Number of levels: ", len(self.graph.levels))
+            #print("Number of levels: ", len(self.graph.levels))
             #breakpoint()
             if (self.goal_test(self.graph.levels[-1].kb) and self.graph.non_mutex_goals(
                     self.graph.planning_problem.goals, -1)):
                 
                 print("SOLVED, EXTRACTING SOLUTION")
-                print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
+                #print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
                 #self.graph.levels[-1](self.graph.planning_problem.actions, self.graph.objects)
-                print(self.graph)
-                print("Last level state:", self.graph.levels[-1].current_state)
-                print("Last level mutexes:", self.graph.levels[-1].mutex)
-                print("Next state links:", self.graph.levels[-1].next_state_links)
-                print("Current action links:", self.graph.levels[-1].current_action_links)
-                print("Extract Solution")
+                #print(self.graph)
+                #print("Last level state:", self.graph.levels[-1].current_state)
+                #print("Last level mutexes:", self.graph.levels[-1].mutex)
+                #print("Next state links:", self.graph.levels[-1].next_state_links)
+                #print("Current action links:", self.graph.levels[-1].current_action_links)
+                #print(f"Extract Solution from {len(self.graph.levels)} levels, {len(self.graph.levels) - 1} actions")
                 solution = self.extract_solution(self.graph.planning_problem.goals, -1)
                 if solution:
                     print(f"SOLUTION::::!!!!!!!!!!!!!!!!\n{solution}")

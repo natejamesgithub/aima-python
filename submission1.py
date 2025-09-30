@@ -92,11 +92,35 @@ if __name__ == "__main__":
     """
 
     #P = shopping_problem()
-    #P = air_cargo()
+    P = air_cargo()
     #P = double_tennis_problem()
-    P = have_cake_and_eat_cake_too()
+    #P = have_cake_and_eat_cake_too()
+    #init = "In(C1, R1) & In(C2, D2) & In(R1, D1) & Holding(R1)"
+    #goal_state = "In(C2, D1)"
+    #P = logisticsPlanCustom(init, goal_state)
+    
+    # PickUp(R1, C2, D2) in level 1 is NOT (shouldn't be) POSSIBLE due to mutexes.
+    """
+    P = PlanningProblem(initial = init,
+                    goals = goal_state,
+                    actions=[Action('PickUp(r, c, d)',
+                                    precond='In(r, d) & In (c, d) & ~Holding(r)',
+                                    effect='Holding(r) & ~In(c, d) & In(c, r)', 
+                                    domain='Robot(r) & Place(d) & Container(c)'),
+                             Action('PutDown(r, c, d)', 
+                                    precond='In(r, d) & In(c, r) & Holding(r)',
+                                    effect='~Holding(r) & ~In(c, r) & In(c, d)',
+                                    domain='Robot(r) & Place(d) & Container(c)'),
+                            Action('Move(r, d_start, d_end)',
+                                   precond='In(r,d_start)',
+                                   effect='~In(r, d_start) & In(r, d_end)',
+                                   domain='Robot(r) & Place(d_start) & Place(d_end)')],
+                domain='Container(C1) & Container(C2) & Place(D1) & Place(D2) & Robot(R1)')
+    """
+    
     print(GraphPlan(P).execute())
     #print(Linearize(P).execute())
+
  
 """
 Standard logistics environment
