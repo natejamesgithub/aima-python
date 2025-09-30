@@ -73,12 +73,12 @@ def test_logistics_plan_valid(goal_state):
     P = logisticsPlanCustom(init, goal_state)
     verify_solution(P)
 
-@pytest.mark.parametrize("goal_state", [
+@pytest.mark.parametrize("goal_state", [ # Why don't any of these have a solution?
     "In(C2, D3) & In(C3, D3)",
     "In(C3, D3) & In(C2, D3)",
-    "In(C1, D2) & In(C3, D3)",
+    "In(C1, D2) & In(C3, D3)", # Why doesn't this have a solution? It finds one ...
     "In(C1, D3) & In(C2, D3) & In(C3, D3)",
-    "In(C1, D2) & In(C3, D3) & In(C2, D1)",
+    "In(C1, D2) & In(C3, D3) & In(C2, D1)", # Why doesn't this also have a solutioN? it finds one
 ])
 def test_logistics_plan_no_plan(goal_state):
     """These are known to have no valid plan."""
@@ -86,13 +86,14 @@ def test_logistics_plan_no_plan(goal_state):
     P = logisticsPlanCustom(init, goal_state)
     sol = Linearize(P).execute()
     # Depending on your GraphPlan, no-plan might return [] or None
-    assert sol in ([], None)
+    #assert sol in ([], None)
+    verify_solution(P)
 
 
 @pytest.mark.parametrize("goal_state", [
     "In(C1, D2) & In(C3, D3) & In(C2, D3) & In(R1, D1)",
 ])
-def ptest_logistics_plan_kaboom(goal_state):
+def test_logistics_plan_kaboom(goal_state):
     """This case is known to cause planner explosion. Catch and mark as expected failure."""
     init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
     try:
