@@ -95,9 +95,9 @@ if __name__ == "__main__":
     #P = air_cargo()
     #P = double_tennis_problem()
     #P = have_cake_and_eat_cake_too()
-    init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
-    goal_state = "In(C1, D2) & In(C3, D3)"
-    P = logisticsPlanCustom(init, goal_state)
+    #init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
+    #goal_state = "In(C1, D2) & In(C3, D3)"
+    #P = logisticsPlanCustom(init, goal_state)
     
     # PickUp(R1, C2, D2) in level 1 is NOT (shouldn't be) POSSIBLE due to mutexes.
     """
@@ -117,8 +117,8 @@ if __name__ == "__main__":
                                    domain='Robot(r) & Place(d_start) & Place(d_end)')],
                 domain='Container(C1) & Container(C2) & Place(D1) & Place(D2) & Robot(R1)')
     """
-    
-    print(GraphPlan(P).execute())
+    P = double_tennis_problem_simple2() 
+    #GraphPlan(P).execute()
     #print(Linearize(P).execute())
 
  

@@ -552,6 +552,41 @@ def socks_and_shoes():
                                            effect='LeftSockOn')])
 
 
+def double_tennis_problem_simple():
+    return PlanningProblem(
+        initial='At(A, LeftNet) & At(B, RightNet) & Approaching(ball, RightBaseline)',
+        goals='At(A, LeftBaseline) & Returned(ball)',
+        actions=[Action('Hit(actor, ball, loc)',
+                        precond='Approaching(ball, loc) & At(actor, loc)',
+                        effect='Returned(ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)')],
+        domain="Loc(LeftBaseline)")
+
+def double_tennis_problem_simple2():
+    return PlanningProblem(
+        initial='At(A, LeftNet) & At(B, LeftNet) & Approaching(ball, RightNet)',
+        goals='At(A, LeftNet) & Returned(ball) & At(B, LeftNet)',
+        actions=[Action('Hit(actor, ball, loc)',
+                        precond='Approaching(ball, loc) & At(actor, loc)',
+                        effect='Returned(ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)')])
+
+def double_tennis_problem_simple3():
+    return PlanningProblem(
+        initial='At(A, LeftNet) & Approaching(ball, RightNet)',
+        goals='At(A, LeftNet) & Returned(ball)',
+        actions=[Action('Hit(actor, ball, loc)',
+                        precond='Approaching(ball, loc) & At(actor, loc)',
+                        effect='Returned(ball)'),
+                 Action('Go(actor, to, loc)',
+                        precond='At(actor, loc)',
+                        effect='At(actor, to) & ~At(actor, loc)')])
+
+
 def double_tennis_problem():
     """
     [Figure 11.10] DOUBLE-TENNIS-PROBLEM
@@ -643,7 +678,7 @@ def double_tennis_problem():
 
     return PlanningProblem(
         initial='At(A, LeftNet) & At(B, RightNet) & Approaching(ball, RightBaseline)',
-        goals='At(A, LeftBaseline) & At(B, LeftNet) & Returned(ball)',
+        goals='At(A, LeftBaseline) & At(B, LeftNet) & Returned(ball)',   
         actions=[Action('Hit(actor, ball, loc)',
                         precond='Approaching(ball, loc) & At(actor, loc)',
                         effect='Returned(ball)'),
@@ -652,7 +687,7 @@ def double_tennis_problem():
                         effect='At(actor, to) & ~At(actor, loc)')],
         domain="Loc(LeftBaseline)")
 
-    
+
 class ForwardPlan(search.Problem):
     """
     [Section 10.2.1]
@@ -1016,7 +1051,7 @@ class Level:
                 if mutex_pair not in self.mutex:  # <-- avoid duplicates
                     self.mutex.append(mutex_pair)
        
-        print([x for x in self.mutex if x not in savemutextemp])
+        #print([x for x in self.mutex if x not in savemutextemp])
         #breakpoint() 
         
         # Inconsistent support - two props cannot be true given competing supporting actions
@@ -1311,7 +1346,7 @@ class Graph:
         # If no combination works, goals are mutex
         return False
     """
-    
+
 class GraphPlan:
     """
     Class for formulation GraphPlan algorithm
@@ -1323,10 +1358,12 @@ class GraphPlan:
         self.graph = Graph(planning_problem)
         self.no_goods = []
         self.solution = []
-        
+
         global isFirstLayer
         isFirstLayer = True
-        
+
+        self.calledextr = False
+
     def __str__(self):
         sol_str = (
             "No solution found"
@@ -1353,41 +1390,53 @@ class GraphPlan:
     def extract_solution(self, goals, index):
         "Extracts the solution"
         
+        #breakpoint()
+        isfirst = False
+        if self.calledextr != True:
+            self.calledextr = True
+            isfirst = True
+
         level = self.graph.levels[index]
         if not self.graph.non_mutex_goals(goals, index):
             self.no_goods.append((level, goals))
             return
 
         level = self.graph.levels[index - 1]
-        #print(f"  On level {index-1}")
-        #print(f"  Mutexes: \n    {level.mutex}")
-
-        # Create all combinations of actions that satisfy the goal
+        # print(f"  On level {index-1}")
+        # print(f"  Mutexes: \n    {level.mutex}")
+        
         #breakpoint()
+
+        # Create all combinations of actions that satisfy each goal
+        # `actions` will be a list of tuples, where each tuple is every action that satisfies one goal literal
         actions = []
         for goal in goals:
             actions.append(level.next_state_links[goal])
 
-        all_actions = list(itertools.product(*actions))
-        #print(f"  ALL ACTION COMBINATIONS at level {index-1}:")
-        ##for a in all_actions:
-            #print("   ", a)
+        # `all_actions` selects elements from each list and creates a new list of actions that satisfies all goals at next level
+        all_actions = list(itertools.product(*actions)) # Why only product? Why not all subsets of non-mutex preconditions?
+        
+        #breakpoint()
 
         # Filter out non-mutex actions
         non_mutex_actions = []
         for action_tuple in all_actions:
+            # Get all pairs of actions in our satisfactory action_tuple
             action_pairs = itertools.combinations(list(set(action_tuple)), 2)
             non_mutex_actions.append(list(set(action_tuple)))
-            #acts = list(set(action_tuple))
-            #print(f"CHECKING tuple {acts} at level {index-1}")
+            # acts = list(set(action_tuple))
+            # print(f"CHECKING tuple {acts} at level {index-1}")
             for pair in list(action_pairs):
-                #print("      testing pair", pair, "mutex?", frozenset(pair) in level.mutex)
                 if set(pair) in level.mutex:
                     non_mutex_actions.pop(-1)
-                    break #?
-        
-        #print(f"NON-MUTEX ACTION SETS at level {index}: {non_mutex_actions}")
-        #print(len(non_mutex_actions), non_mutex_actions)
+                    break # If any actions are mutex, remove the entire tuple from our list
+
+        # print(f"NON-MUTEX ACTION SETS at level {index}: {non_mutex_actions}")
+        # print(len(non_mutex_actions), non_mutex_actions)
+        # breakpoint()
+
+        # At this point, the non_mutex_actions contains a list of lists of valid actions that are all non-mutex and satisfy our goal state
+
         #breakpoint()
 
         # Recursion
@@ -1405,24 +1454,112 @@ class GraphPlan:
                 elif (level, new_goals) in self.no_goods:
                     return
                 else:
-                    #print(f"  Recursing with new goal: {new_goals}")
-                    self.extract_solution(new_goals, index - 1)
+                    # print(f"  Recursing with new goal: {new_goals}")
+                    self.extract_solution(new_goals, index - 1) # DFS search
+            
+                
+        print("self.solution = ", self.solution)
+        print("self.nogoods = ", self.no_goods)
+        #if isfirst:
+        #    breakpoint()
 
+        """
         # Level-Order multiple solutions
         solution = []
-        for item in self.solution:
-            if item[1] == -1:
+        for item in self.solution: # self.solution will contain sets of actions at a level.
+            if item[1] == -1: # We are at the bottom of the tree in recursion, and we create a new unique solution for this leaf node
                 solution.append([])
+                solution[-1].append(item[0]) 
+            else: # We are at an intermediate node, we add it to our last solution (but not other possible nodes?)
                 solution[-1].append(item[0])
-            else:
-                solution[-1].append(item[0])
+                
+        #breakpoint()
 
         for num, item in enumerate(solution):
             item.reverse()
             solution[num] = item
-            
+
         return solution
+        """
+
+        if not self.solution:
+            return []
+
+        # 1. Determine the leaf level and the expected length of a valid plan.
+        leaf_level = min(item[1] for item in self.solution)
+        expected_plan_length = abs(leaf_level)
+        print(f"DEBUG: Target leaf level: {leaf_level}, Expected plan length: {expected_plan_length}\n")
+
+
+        completed_plans = []
+        current_path = []
+        initial_state = set(self.graph.levels[0].current_state)
+        level_zero = self.graph.levels[0]
         
+        # 2. Iterate through the ordered search log.
+        for i, item in enumerate(self.solution):
+            actions, level = item
+            print(f"--- Iteration {i+1} ---")
+            print(f"Processing Item: {item}")
+            print(f"Path BEFORE changes: {current_path}")
+
+            # 3. Rewind the current path to handle backtracks.
+            rewound = False
+            while current_path and level != current_path[-1][1] - 1:
+                if not rewound:
+                    print(f"-> Backtrack detected (Lvl {level} doesn't follow Lvl {current_path[-1][1]}). Rewinding path...")
+                    rewound = True
+                popped_item = current_path.pop()
+                print(f"   ...Popped: {popped_item}")
+            
+            if rewound:
+                print(f"Path AFTER rewind: {current_path}")
+
+            # 4. Append the current item to form the new active path.
+            current_path.append(item)
+            print(f"Appending item. New Path is now: {current_path}\n")
+            
+            # 5. Check if the active path has a valid structure.
+            is_rooted = current_path[0][1] == -1
+            is_grounded = current_path[-1][1] == leaf_level
+            is_contiguous = len(current_path) == expected_plan_length
+
+            # Only proceed if the path is structurally sound.
+            if is_rooted and is_grounded and is_contiguous:
+                print(f"-> Path is structurally valid. Performing final initial state check...")
+                
+                # 6. Final Check: Verify first actions' preconditions against the initial state.
+                initial_state_satisfied = True
+                first_actions_in_plan = set(current_path[-1][0])
+
+                for action in first_actions_in_plan:
+                    preconditions = level_zero.current_action_links.get(action,None)
+                    if preconditions is None:
+                        initial_state_satisfied = False
+                        preconditions = []
+                    preconditions = set(preconditions)
+                    print("Testing preconditions: ", preconditions, ", and initial_state: ", initial_state)
+                    if not preconditions.issubset(initial_state):
+                        initial_state_satisfied = False
+                        print(f"   ❗️ Path failed validation. Action '{action}' preconditions {preconditions} are not met by initial state.")
+                        break
+                
+                if initial_state_satisfied:
+                    print(f"   ✅ Success! Plan fully verified and found: {current_path}\n")
+                    completed_plans.append(list(current_path))
+        
+        print(f"--- Loop Finished ---")
+        print(f"Found {len(completed_plans)} complete plan(s) before final formatting.")
+
+        # Format the final solutions
+        solution = []
+        for plan in completed_plans:
+            action_plan = [item[0] for item in plan]
+            action_plan.reverse()
+            solution.append(action_plan)
+
+        return solution
+
     """
     def extract_solution(self, goals, index):
         "Extracts the solution"
@@ -1483,47 +1620,48 @@ class GraphPlan:
 
         return solution
     """
-    
+
     def goal_test(self, kb):
         goal_achieved = all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
-        #print(goal_achieved)
+        # print(goal_achieved)
         return goal_achieved
-    
 
     def execute(self):
-        """Executes the GraphPlan algorithm for the given problem"""
+        "Executes the GraphPlan algorithm for the given problem"
 
         print("Forward Search")
         while True:
             self.graph.expand_graph()
-            print(self.graph)
-            #print("Number of levels: ", len(self.graph.levels))
+            #print(self.graph)
+            # print("Number of levels: ", len(self.graph.levels))
             #breakpoint()
             if (self.goal_test(self.graph.levels[-1].kb) and self.graph.non_mutex_goals(
                     self.graph.planning_problem.goals, -1)):
-                
+
                 print("SOLVED, EXTRACTING SOLUTION")
-                #print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
-                #self.graph.levels[-1](self.graph.planning_problem.actions, self.graph.objects)
-                #print(self.graph)
-                #print("Last level state:", self.graph.levels[-1].current_state)
-                #print("Last level mutexes:", self.graph.levels[-1].mutex)
-                #print("Next state links:", self.graph.levels[-1].next_state_links)
-                #print("Current action links:", self.graph.levels[-1].current_action_links)
-                #print(f"Extract Solution from {len(self.graph.levels)} levels, {len(self.graph.levels) - 1} actions")
+                # print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
+                # self.graph.levels[-1](self.graph.planning_problem.actions, self.graph.objects)
+                # print(self.graph)
+                # print("Last level state:", self.graph.levels[-1].current_state)
+                # print("Last level mutexes:", self.graph.levels[-1].mutex)
+                # print("Next state links:", self.graph.levels[-1].next_state_links)
+                # print("Current action links:", self.graph.levels[-1].current_action_links)
+                # print(f"Extract Solution from {len(self.graph.levels)} levels, {len(self.graph.levels) - 1} actions")
                 solution = self.extract_solution(self.graph.planning_problem.goals, -1)
+                self.calledextr = False
                 if solution:
                     print(f"SOLUTION::::!!!!!!!!!!!!!!!!\n{solution}")
                     return solution
 
-            #print(len(self.graph.levels))
+            # print(len(self.graph.levels))
             if len(self.graph.levels) >= 2 and self.check_leveloff():
-                #breakpoint()
+                # breakpoint()
                 return None
 
 
 # BILLS CLASS
 
+"""
 class Linearize:
 
     def __init__(self, planning_problem):
@@ -1570,6 +1708,7 @@ class Linearize:
         "Finds total-order solution for a planning graph"
 
         graphPlan_solution = GraphPlan(self.planning_problem).execute()
+        breakpoint()
 
         ## Bill's stuff from playing around
         ## print(f"UNFILTERED PLAN: {graphPlan_solution}")  ## Bill's hack
@@ -1630,6 +1769,7 @@ class Linearize:
                 break
             
         return ordered_solution
+"""
 
 """
 # GPT Modified
@@ -1725,7 +1865,7 @@ class Linearize:
         return new_solution
 """
 
-"""
+
 # ORIGINAL
 
 class Linearize:
@@ -1776,8 +1916,7 @@ class Linearize:
                 ordered_solution.append(element)
 
         return ordered_solution
-"""
-    
+
 def linearize(solution):
     """Converts a level-ordered solution into a linear solution"""
     

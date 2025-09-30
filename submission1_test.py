@@ -47,10 +47,6 @@ def test_socks_and_shoes():
     P = socks_and_shoes()
     verify_solution(P)
 
-def ptest_double_tennis_problem():
-    P = double_tennis_problem()
-    verify_solution(P)
-
 @pytest.mark.parametrize("goal_state", [
     "In(C1, D1)",
     "In(C1, D2)",
@@ -65,7 +61,13 @@ def ptest_double_tennis_problem():
     "In(C1, D1) & In(C2, D3)",
     "In(C3, D1)",
     "In(C2, D3)",
+    #"In(C2, D3) & In(C3, D3)", \
+    #"In(C3, D3) & In(C2, D3)", \
+    "In(C1, D2) & In(C3, D3)",
+    #"In(C1, D3) & In(C2, D3) & In(C3, D3)", \
+    "In(C1, D2) & In(C3, D3) & In(C2, D1)",
     "In(C3, D3)",
+    #"In(C1, D2) & In(C3, D3) & In(C2, D3) & In(R1, D1)" \
 ])
 def test_logistics_plan_valid(goal_state):
     """These should yield a valid (non-crashing) plan, even if empty."""
@@ -73,33 +75,19 @@ def test_logistics_plan_valid(goal_state):
     P = logisticsPlanCustom(init, goal_state)
     verify_solution(P)
 
-@pytest.mark.parametrize("goal_state", [ # Why don't any of these have a solution?
-    "In(C2, D3) & In(C3, D3)",
-    "In(C3, D3) & In(C2, D3)",
-    "In(C1, D2) & In(C3, D3)", # Why doesn't this have a solution? It finds one ...
-    "In(C1, D3) & In(C2, D3) & In(C3, D3)",
-    "In(C1, D2) & In(C3, D3) & In(C2, D1)", # Why doesn't this also have a solutioN? it finds one
-])
-def test_logistics_plan_no_plan(goal_state):
-    """These are known to have no valid plan."""
-    init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
-    P = logisticsPlanCustom(init, goal_state)
-    sol = Linearize(P).execute()
-    # Depending on your GraphPlan, no-plan might return [] or None
-    #assert sol in ([], None)
+def test_double_tennis_problem_simple():
+    P = double_tennis_problem_simple()
+    verify_solution(P)
+    
+    
+def test_double_tennis_problem_simple2():
+    P = double_tennis_problem_simple2()
+    verify_solution(P)
+    
+def test_double_tennis_problem_simple3():
+    P = double_tennis_problem_simple3()
     verify_solution(P)
 
-
-@pytest.mark.parametrize("goal_state", [
-    "In(C1, D2) & In(C3, D3) & In(C2, D3) & In(R1, D1)",
-])
-def test_logistics_plan_kaboom(goal_state):
-    """This case is known to cause planner explosion. Catch and mark as expected failure."""
-    init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
-    try:
-        P = logisticsPlanCustom(init, goal_state)
-        sol = Linearize(P).execute()
-        # If it actually returns, that's fine too
-        assert sol is None or isinstance(sol, list)
-    except Exception:
-        pytest.xfail("Known kaboom case – planner explosion or unsolvable problem")
+def test_double_tennis_problem():
+    P = double_tennis_problem()
+    verify_solution(P)

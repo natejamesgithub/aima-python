@@ -1,0 +1,60 @@
+Look at current goals
+ - Index = -1, len(self.graph.levels) = 3
+
+Add action sets that lead to each goal in goal state into actions list (one of each of these actions must be true)
+ - (Pdb) print(action_list)
+ - [Unload(C2, P2, SFO), Unload(C1, P1, JFK)]
+Get sets of actions such that each set has one action from each of these lists (i.e. the cartesian product, done with itertools.product)
+Filter out mutex action pairs
+ - At this point, we NEED at least one set of actions to be non-mutex in order to find a valid way to get to that next state.
+
+Update self.solution with these new goal actions
+Identify states that have these actions applicable. Add these states to "new_goals"
+ - Unload(C2, P2, SFO): [In(C2, P2), At(P2, SFO), Cargo(C2), Plane(P2), Airport(SFO)]
+ - Unload(C1, P1, JFK): [In(C1, P1), At(P1, JFK), Cargo(C1), Plane(P1), Airport(JFK)]
+
+(Pdb) print(new_goals)
+[In(C2, P2), At(P2, SFO), Cargo(C2), Plane(P2), Airport(SFO), In(C1, P1), At(P1, JFK), Cargo(C1), Plane(P1), Airport(JFK)]
+
+self.extract_solution(new_goals, index - 1)
+ - [In(C2, P2), At(P2, SFO), Cargo(C2), Plane(P2), Airport(SFO), In(C1, P1), At(P1, JFK), Cargo(C1), Plane(P1), Airport(JFK)] -2
+ 
+ (Pdb) print(actions)
+[[Load(C2, P2, JFK)], [Fly(P2, JFK, SFO)], [PCargo(C2)], [PPlane(P2)], [PAirport(SFO)], [Load(C1, P1, SFO)], [Fly(P1, SFO, JFK)], [PCargo(C1)], [PPlane(P1)], [PAirport(JFK)]]
+
+None are non-mutex !!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
+
+(Pdb) print(all_actions)
+[(Load(C2, P2, JFK), Fly(P2, JFK, SFO), PCargo(C2), PPlane(P2), PAirport(SFO), Load(C1, P1, SFO), Fly(P1, SFO, JFK), PCargo(C1), PPlane(P1), PAirport(JFK))]
+
+(Pdb) print(list(action_pairs))
+[(Load(C1, P1, SFO), Load(C2, P2, JFK)), (Load(C1, P1, SFO), PAirport(JFK)), (PAirport(SFO), Fly(P2, JFK, SFO)), (PAirport(SFO), PCargo(C1)), (PAirport(SFO), PPlane(P2)), (PAirport(SFO), Fly(P1, SFO, JFK)), (PAirport(SFO), Load(C2, P2, JFK)), (PAirport(SFO), PAirport(JFK)), (Fly(P2, JFK, SFO), PCargo(C1)), (Fly(P2, JFK, SFO), PPlane(P2)), (Fly(P2, JFK, SFO), Fly(P1, SFO, JFK)), (Fly(P2, JFK, SFO), Load(C2, P2, JFK)), (Fly(P2, JFK, SFO), PAirport(JFK)), (PCargo(C1), PPlane(P2)), (PCargo(C1), Fly(P1, SFO, JFK)), (PCargo(C1), Load(C2, P2, JFK)), (PCargo(C1), PAirport(JFK)), (PPlane(P2), Fly(P1, SFO, JFK)), (PPlane(P2), Load(C2, P2, JFK)), (PPlane(P2), PAirport(JFK)), (Fly(P1, SFO, JFK), Load(C2, P2, JFK)), (Fly(P1, SFO, JFK), PAirport(JFK)), (Load(C2, P2, JFK), PAirport(JFK))]
+ - (Fly(P2, JFK, SFO), Fly(P1, SFO, JFK))
+
+(Pdb) print(level.mutex)
+[{Load(C2, P2, JFK), PAt(C2, JFK)}, {PAt(C1, SFO), Load(C1, P1, SFO)}, {Fly(P1, SFO, JFK), PAt(P1, SFO)}, {PAt(P2, JFK), Fly(P2, JFK, SFO)}, {Load(C2, P2, JFK), Fly(P2, JFK, SFO)}, {Fly(P1, SFO, JFK), Load(C1, P1, SFO)}]
+ - 
+ 
+ 
+ 
+ Observable issue:
+
+Final layer has state `At(C1, JFK) & At(C2, SFO)` non-mutex
+
+At(C1, JFK) requires Unload(C1, P1, JFK)
+At(C2, SFO) requires Unload(C2, P2, SFO)
+
+These actions Unload(C1, P1, JFK) and Unload(C2, P2, SFO) are NOT mutex in action layer
+
+They rely on the following state at s_1
+ - Unload(C2, P2, SFO): [In(C2, P2), At(P2, SFO),...]
+ - Unload(C1, P1, JFK): [In(C1, P1), At(P1, JFK),...]
+ 
+Preconditions, e.g. for Unload(C2, P2, SFO):
+ - In(C2, P2), At(P2, SFO)
+ - are mutex, but since they both exist in the state, we still apply the action anyway? When is this supposed to be caught?
+
+ 
+ 
+[{At(C1, SFO), In(C1, P1)}, {At(C1, SFO), NotAt(C1, SFO)}, {At(C2, JFK), In(C2, P2)}, {At(C2, JFK), NotAt(C2, JFK)}, {At(P1, SFO), At(P1, JFK)}, {At(P1, SFO), NotAt(P1, SFO)}, {At(P2, JFK), At(P2, SFO)}, {NotAt(P2, JFK), At(P2, JFK)}, {At(P1, JFK), In(C1, P1)}, {NotAt(P1, SFO), In(C1, P1)}, {At(P1, JFK), NotAt(C1, SFO)}, {NotAt(P1, SFO), NotAt(C1, SFO)}, {At(P2, SFO), In(C2, P2)}, {NotAt(P2, JFK), In(C2, P2)}, {NotAt(C2, JFK), At(P2, SFO)}, {NotAt(P2, JFK), NotAt(C2, JFK)}]
+
