@@ -1658,6 +1658,74 @@ class GraphPlan:
                 # breakpoint()
                 return None
 
+# Carwyns mods
+class Linearize:
+
+    def __init__(self, planning_problem):
+        self.planning_problem = planning_problem
+
+    def filter(self, solution):
+        "Filter out persistence actions from a solution"
+
+        new_solution = []
+        for section in solution:
+            new_section = []
+            for operation in section:
+                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
+                    new_section.append(operation)
+            # filter may remove all actions if all actions are persistent
+            if new_section != []:
+                new_solution.append(new_section)
+        return new_solution
+
+    def orderlevel(self, level, planning_problem):
+        "Return valid linear order of actions for a given level"
+
+        for permutation in itertools.permutations(level):
+            temp = copy.deepcopy(planning_problem)
+            count = 0
+            for action in permutation:
+                try:
+                    temp.act(action)
+                    count += 1
+                except:
+                    count = 0
+                    temp = copy.deepcopy(planning_problem)
+                    continue
+            if count == len(permutation):
+                return list(permutation), temp
+        # identifying a linear ordering for level failed ... return no solution and same planning problem state
+        return None, planning_problem
+
+    def execute(self):
+        "Finds a total-order solution for a planning graph. Possibly not the only linearization possible."
+
+        graphPlan_solution = GraphPlan(self.planning_problem).execute()
+        
+        for itr, possible_plan in enumerate(graphPlan_solution):
+            filtered_solution = self.filter(possible_plan)
+            #print(f"Trying filtered plan #{itr}: {filtered_solution}")
+            
+            ordered_solution = []
+            # planning_problem will maintain the current state as we iterate over levels, allowing test application of actions
+            planning_problem = self.planning_problem
+            for level in filtered_solution:
+                level_solution, planning_problem = self.orderlevel(level, planning_problem)
+                if not level_solution:
+                    # level failed to apply, this plan shouldn't work
+                    ordered_solution = None
+                    break # technically could try `continue` anyway, but we shouldn't need to
+
+                for element in level_solution:   
+                    ordered_solution.append(element)
+
+            if not ordered_solution:
+                continue  ## no plan possible from the partial plan at the level
+            else:
+                break
+            
+        return ordered_solution
+
 
 # BILLS CLASS
 
@@ -1865,7 +1933,7 @@ class Linearize:
         return new_solution
 """
 
-
+"""
 # ORIGINAL
 
 class Linearize:
@@ -1916,6 +1984,7 @@ class Linearize:
                 ordered_solution.append(element)
 
         return ordered_solution
+"""
 
 def linearize(solution):
     """Converts a level-ordered solution into a linear solution"""
