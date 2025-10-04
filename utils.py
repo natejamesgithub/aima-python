@@ -9,6 +9,7 @@ import operator
 import os.path
 import random
 from itertools import chain, combinations
+import itertools
 from statistics import mean
 
 import numpy as np
@@ -618,6 +619,17 @@ class Expr:
         else:  # (x - y)
             opp = (' ' + op + ' ')
             return '(' + opp.join(args) + ')'
+        
+    def predicate_negate(self):
+            """
+            Return the logical negation of an Expr.
+            Assumes we are using "Not" as our negation operator. Avoids double "Not" as prefix
+            """
+            if self.op.startswith("Not"):
+                # strip the Not prefix
+                return Expr(self.op[3:], *self.args)
+            else:
+                return Expr("Not" + self.op, *self.args)
 
 
 # An 'Expression' is either an Expr or a Number.
@@ -788,3 +800,35 @@ class Bool(int):
 
 T = Bool(True)
 F = Bool(False)
+
+
+
+
+def powerset_product(list_of_lists):
+    """
+    Computes the Cartesian product of the power sets of the inner lists.
+
+    Args:
+        list_of_lists: A list of lists, e.g., [[1, 2], ['a', 'b']].
+
+    Returns:
+        A list of lists, where each inner list is a combination of subsets.
+    """
+    
+    # Helper function to generate the power set for a single iterable
+    def powerset(iterable):
+        s = list(iterable)
+        # chain.from_iterable() flattens the list of tuples from combinations
+        # combinations(s, r) gives all subsets of length r
+        return list(chain.from_iterable(combinations(s, r) for r in range(len(s) + 1)))
+
+    # 1. Generate the power set for each inner list
+    all_power_sets = [powerset(sublist) for sublist in list_of_lists]
+    
+    # 2. Compute the Cartesian product of the power sets
+    cartesian_prod = itertools.product(*all_power_sets)
+    
+    # 3. Combine the tuples of tuples into a single list for each result
+    result = [list(chain.from_iterable(item)) for item in cartesian_prod]
+    
+    return result

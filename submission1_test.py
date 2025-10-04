@@ -15,6 +15,23 @@ def test_blocksworld_manual():
     assert sbw.goal_test() == True
 
 
+def test_logistics_manual():
+    init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
+    goal_state = "In(C2, D3) & In(C3, D3)"
+    P = logisticsPlanCustom(init, goal_state)
+    assert P.goal_test() == False
+    P.act(expr('PutDown(R1, C1, D1)'))
+    P.act(expr('PickUp(R1, C2, D1)'))
+    P.act(expr('Move(R1, D1, D3)'))
+    P.act(expr('PutDown(R1, C2, D3)'))
+    P.act(expr('Move(R1, D3, D2)'))
+    P.act(expr('PickUp(R1, C3, D2)'))
+    P.act(expr('Move(R1, D2, D3)'))
+    assert P.goal_test() == False
+    P.act(expr('PutDown(R1, C3, D3)'))
+    assert P.goal_test() == True
+    
+
 def verify_solution(P):
     sol = Linearize(P).execute()
     print(sol)
@@ -61,13 +78,13 @@ def test_socks_and_shoes():
     "In(C1, D1) & In(C2, D3)",
     "In(C3, D1)",
     "In(C2, D3)",
-    #"In(C2, D3) & In(C3, D3)", \
-    #"In(C3, D3) & In(C2, D3)", \
+    "In(C2, D3) & In(C3, D3)", \
+    "In(C3, D3) & In(C2, D3)", \
     "In(C1, D2) & In(C3, D3)",
-    #"In(C1, D3) & In(C2, D3) & In(C3, D3)", \
+    "In(C1, D3) & In(C2, D3) & In(C3, D3)", \
     "In(C1, D2) & In(C3, D3) & In(C2, D1)",
     "In(C3, D3)",
-    #"In(C1, D2) & In(C3, D3) & In(C2, D3) & In(R1, D1)" \
+    "In(C1, D2) & In(C3, D3) & In(C2, D3) & In(R1, D1)" \
 ])
 def test_logistics_plan_valid(goal_state):
     """These should yield a valid (non-crashing) plan, even if empty."""

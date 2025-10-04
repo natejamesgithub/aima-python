@@ -98,7 +98,11 @@ if __name__ == "__main__":
     #P = double_tennis_problem()
     #P = have_cake_and_eat_cake_too()
     init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
-    goal_state = "In(C1,D1)"
+    #goal_state = "In(C1,D1)"
+    goal_state = "In(C2, D3) & In(C3, D3)"
+    #goal_state = "In(C1, D3) & In(C2, D3) & In(C3, D3)"
+    # putdown(c1), pickup(c2), move(d3), putdown(c2), move(d2), pickup(c3), move(d3), putdown(c3)
+    
     #goal_state = "In(C3, D1)"
     #goal_state = "In(C2, D3)"
     #goal_state = "In(C3, D3)"
@@ -126,8 +130,8 @@ if __name__ == "__main__":
     """
     #P = double_tennis_problem_simple2() 
     #GraphPlan(P).execute()
-    #print(Linearize(P).execute())
-    verify_solution(P)
+    print(Linearize(P).execute())
+    #verify_solution(P)
 
  
 """

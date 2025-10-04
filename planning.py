@@ -11,7 +11,10 @@ import search
 from csp import sat_up, NaryCSP, Constraint, ac_search_solver, is_constraint
 from logic import FolKB, conjuncts, unify_mm, associate, SAT_plan, cdcl_satisfiable
 from search import Node
-from utils import Expr, expr, first
+from utils import Expr, expr, first, powerset_product
+
+from plotter import *
+from graphplan_debugger import *
 
 class PlanningProblem:
     """
@@ -136,7 +139,6 @@ class PlanningProblem:
                             new_effect = Expr(str(effect.op), *new_effect_args)
                             new_effects.append(new_effect)
                         expansions.append(Action(new_expr, new_preconds, new_effects))
-
         return expansions
 
     def is_strips(self):
@@ -957,6 +959,9 @@ class Level:
         self.state_mutexes = self.mutex # save state mutexes
         self.mutex = [] # clear out effects from state mutex prior computation
 
+        """
+        # Technically correct version of Inconsistent effects, but introduces duplicates
+        ic1 = []
         # Inconsistent effects - one action adds a literal that another deletes
         pos_nsl, neg_nsl = self.separate(self.next_state_links)
 
@@ -966,13 +971,37 @@ class Level:
                 if new_negeff == poseff:
                     for a in self.next_state_links[poseff]:
                         for b in self.next_state_links[negeff]:
-                            if {a, b} not in self.mutex:
-                                self.mutex.append({a, b})
-                                
-        # Interference will be calculated with the last step ???
-        # Interference - One action deletes a precondition or effect of another
+                            #if {a, b} not in self.mutex:
+                            self.mutex.append({a, b})
+                            ic1.append({a,b})
+        """
         
+        """
+        # Version that we have implemented efficiently below
+        ic2 = []
+        for a1, a2 in itertools.combinations(self.next_action_links.keys(), 2):
+            preconds_a1 = self.current_action_links.get(a1, [])
+            preconds_a2 = self.current_action_links.get(a2, [])
+            effects_a1 = self.next_action_links.get(a1, [])
+            effects_a2 = self.next_action_links.get(a2, []) 
+            
+            # Check for interference
+            interference = False 
+            # Check if effect of one action is negated by effect of other action (inconsistent effects?)
+            for e1 in effects_a1:
+                if e1.predicate_negate() in effects_a2:
+                    interference = True
+            for e2 in effects_a2:
+                if e2.predicate_negate() in effects_a1:
+                    interference = True
 
+            if interference:
+                mutex_pair = {a1, a2}
+                #if mutex_pair not in self.mutex:  # <-- avoid duplicates
+                ic2.append(mutex_pair)
+        """
+                    
+                               
         # Competing needs - preconditions of two actions are mutex at previous proposition layer
         """
         pos_csl, neg_csl = self.separate(self.current_state_links)
@@ -991,65 +1020,52 @@ class Level:
         # Competing Needs
         # self.current_state_links = map from current state vars -> actions applicable
         # self.current_action_links = map from current actions -> starting states
-        
         # Implement here: Iterate over all valid pairs of actions, and if the states they come from are mutex (use self.state_mutexes), add a mutex pair to self.mutex
         # Competing Needs - two actions are mutex if any of their preconditions are mutex at the previous state level
         for a1, a2 in itertools.combinations(self.current_action_links.keys(), 2):
             preconds_a1 = self.current_action_links[a1] # states
             preconds_a2 = self.current_action_links[a2]
             
-            #if len(preconds_a1) > 1 or len(preconds_a2) > 1:
-            #    print("An action has multiple preconditions (state)? Is the following logic implemented correctly? I think so")
-
-            # check all pairs of preconditions
-            for p in preconds_a1:
-                for q in preconds_a2:
-                    if {p, q} in self.state_mutexes:
-                        mutex_pair = {a1, a2}
-                        if mutex_pair not in self.mutex:
-                            self.mutex.append(mutex_pair)
-                        # no need to keep checking once we've marked them
-                        break
-                else:
-                    continue
-                break
+            if any({p, q} in self.state_mutexes for p in preconds_a1 for q in preconds_a2):
+                mutex_pair = {a1, a2}
+                if mutex_pair not in self.mutex:
+                    self.mutex.append(mutex_pair)
          
-        # Interference
+        # Interference AND Inconsistent Effects
         # Example - in shopping, ensure Move(Home,HW) and Move(Home,SM) are both mutex in L0
-        
         # current_action_links = current action -> current state map
-
-        savemutextemp = copy.copy(self.mutex)
-
         for a1, a2 in itertools.combinations(self.next_action_links.keys(), 2):
             preconds_a1 = self.current_action_links.get(a1, [])
             preconds_a2 = self.current_action_links.get(a2, [])
             effects_a1 = self.next_action_links.get(a1, [])
             effects_a2 = self.next_action_links.get(a2, [])
             
+            #print(a1,a2)
+            #if "PickUp" in a1.op and "PickUp" in a2.op:
+            #    breakpoint()
+            
             # Check for interference
             interference = False
             # Check if a precondition of one action is negated by effect of another
             for p1 in preconds_a1:
-                if Expr("Not" + p1.op, *p1.args) in effects_a2:
+                if p1.predicate_negate() in effects_a2:
                     interference = True
             for p2 in preconds_a2:
-                if Expr("Not" + p2.op, *p2.args) in effects_a1:
+                if p2.predicate_negate() in effects_a1:
                     interference = True
-            # Check if effect of one action is negated by effect of other action (inconsistent effects?)
-            """
+            # Check if effect of one action is negated by effect of other action (inconsistent effects)
             for e1 in effects_a1:
-                if Expr("Not" + e1.op, *e1.args) in effects_a2:
-                    interference = True
+                if e1.predicate_negate() in effects_a2:
+                    interference = True # Technically inconsistent effects
             for e2 in effects_a2:
-                if Expr("Not" + e2.op, *e2.args) in effects_a1:
-                    interference = True
-            """
+                if e2.predicate_negate() in effects_a1:
+                    interference = True # Technically inconsistent effects
 
             if interference:
                 mutex_pair = {a1, a2}
                 if mutex_pair not in self.mutex:  # <-- avoid duplicates
                     self.mutex.append(mutex_pair)
+       
        
         #print([x for x in self.mutex if x not in savemutextemp])
         #breakpoint() 
@@ -1088,14 +1104,15 @@ class Level:
                 continue
             
             # if any two actions that lead to these states is not mutex, do not add a mutex to these states.
-            if not any([{a1,a2} not in self.mutex and {a2,a1} not in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
+            #if not any([{a1,a2} not in self.mutex and {a2,a1} not in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
+            if all([{a1,a2} in self.mutex or {a2,a1} in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
                 mutex_pair = {s1, s2}
                 if mutex_pair not in state_mutex:
                     state_mutex.append(mutex_pair)
 
         # If there are pairs of propositions that are negations of each other, they need to be mutex
         for s1i in range(len(self.current_state)):
-            for s2i in range(1,len(self.current_state)):
+            for s2i in range(s1i,len(self.current_state)):
                 s1, s2 = self.current_state[s1i], self.current_state[s2i]
                 if repr(s2)[0:3] == "Not" and repr(s1) == repr(s2)[3:] or repr(s1)[0:3] == "Not" and repr(s1)[3:] == repr(s2):
                     mutex_pair = {s1, s2}
@@ -1111,10 +1128,6 @@ class Level:
         """Remove actions whose own preconditions are mutex (unsupportable)."""
         to_remove = []
 
-        # Debug
-        # breakpoint()
-        # print("STATE_MUTEXES:", self.state_mutexes)
-
         # Normalize state mutex set for fast membership checks:
         # state_mutex_lookup contains frozenset pairs like frozenset({p,q})
         state_mutex_lookup = set()
@@ -1124,7 +1137,6 @@ class Level:
 
         for action, preconds in list(self.current_action_links.items()):
             invalid = False
-            # show debug info if you want:
             # print(action, preconds, list(itertools.combinations(preconds, 2)))
 
             for p1, p2 in itertools.combinations(preconds, 2):
@@ -1134,10 +1146,6 @@ class Level:
 
             if invalid:
                 to_remove.append(action)
-
-        # Debug
-        #print("REMOVING: ", to_remove)
-        #breakpoint()
 
         # Remove invalid actions from all mappings
         for action in to_remove:
@@ -1280,7 +1288,6 @@ class Graph:
         new_level.mutex = last_level.populate_prop_mutexes() # Populate the mutexes for the next state level to come
         self.levels.append(new_level)
 
-        #breakpoint()
         
     def non_mutex_goals(self, goals, index):
         "Checks whether the goals are mutually exclusive"
@@ -1362,8 +1369,6 @@ class GraphPlan:
         global isFirstLayer
         isFirstLayer = True
 
-        self.calledextr = False
-
     def __str__(self):
         sol_str = (
             "No solution found"
@@ -1387,18 +1392,122 @@ class GraphPlan:
         if check:
             return True
 
-    def extract_solution(self, goals, index):
+
+
+
+
+    def _get_preconditions_for(self, action_set, level):
+        #Collects all unique preconditions for a given set of actions in a level.
+        all_preconditions = set()
+        for action in action_set:
+            # Assumes level.current_action_links maps an action to its preconditions
+            preconditions = level.current_action_links.get(action, [])
+            all_preconditions.update(preconditions)
+        return all_preconditions
+
+
+    def _find_valid_action_sets(self, goals, level):
+        #Finds sets of actions in the given level that are not mutually exclusive
+        #and that collectively satisfy all the goals.
+        #This correctly replaces the flawed `itertools.product` logic.
+        valid_sets = []
+        
+        # 1. Map each goal to the list of actions that can achieve it.
+        actions_for_goal = {g: level.next_state_links.get(g, []) for g in goals}
+
+        # 2. Generate combinations of actions that could potentially satisfy the goals.
+        # This creates a list of lists, where each inner list contains potential achievers for one goal.
+        potential_action_groups = [actions_for_goal[g] for g in goals]
+        
+        # The cartesian product gives us tuples, where each tuple contains one action
+        # choice for each goal.
+        for action_combination in itertools.product(*potential_action_groups):
+            # We only need the unique actions in the combination.
+            action_set = set(action_combination)
+
+            # 3. Check for mutexes within this set of actions.
+            is_mutex = False
+            for a1, a2 in itertools.combinations(action_set, 2):
+                if {a1, a2} in level.mutex:
+                    is_mutex = True
+                    break
+            
+            # 4. If the set is non-mutex and we haven't already added it, it's a valid option.
+            if not is_mutex and action_set not in valid_sets:
+                valid_sets.append(action_set)
+                
+        return valid_sets
+
+    # Place this within your GraphPlan class
+    def extract_solution(self, goals, level_index, root=False):
+        #Primary method to start the solution extraction process.
+        #It calls the recursive helper and returns the final plan.
+        # Start the recursive search from the level where goals must be true
+        final_plan = self._extract_solution_recursive(set(goals), len(self.graph.levels)-1)
+        return final_plan
+
+    # Place this within your GraphPlan class, replacing the previous version
+    def _extract_solution_recursive(self, goals, level_index):
+        #Recursively searches for a plan backwards from a given level using negative indexing.
+        
+        #Args:
+        #    goals (set): The set of goal propositions to satisfy.
+        #    level_index (int): level index
+        #print(level_index)
+        #breakpoint()
+        # BASE CASE: We've recursed back to the initial proposition layer (Level 0).
+        # The 'goals' at this point are the preconditions for the very first set of actions.
+        # We must check if they exist in the initial state. No further recursion is needed.
+        if level_index == 0:
+            #breakpoint()
+            initial_state = set(self.graph.levels[0].current_state)
+            if goals.issubset(initial_state):
+                return []  # Success! Return the empty plan to be built upon.
+            else:
+                return None  # Failure. This path is invalid as preconditions are not met.
+
+        # MEMOIZATION: Check if we've already proven this subproblem is unsolvable.
+        # TODO: ADD SUPERSET CHECK
+        if (level_index, frozenset(goals)) in self.no_goods:
+            return None
+
+        # RECURSIVE STEP:
+        # To satisfy goals at `level_index`, we need to find a suitable set of non-mutex actions
+        # from the *previous* level's action layer.
+        action_level = self.graph.levels[level_index - 1]
+        valid_action_sets = self._find_valid_action_sets(goals, action_level)
+
+        # Iterate through each valid action set and try to find a path.
+        for action_set in valid_action_sets:
+            # The new sub-goals are the combined preconditions for this action set.
+            new_goals = self._get_preconditions_for(action_set, action_level)
+
+            # Recurse to solve for the new goals at the previous proposition layer.
+            sub_plan = self._extract_solution_recursive(new_goals, level_index - 1)
+
+            # If the recursive call succeeded, we have a solution!
+            if sub_plan is not None:
+                # Append the current level's actions and return the full plan.
+                return sub_plan + [list(action_set)]
+
+        # If the loop finishes without a solution, this subproblem is a "no-good".
+        nogood_item = (level_index, frozenset(goals))
+        if nogood_item not in self.no_goods:
+            self.no_goods.append(nogood_item)
+        return None
+
+
+
+    """
+    def extract_solution(self, goals, index, root=False):
         "Extracts the solution"
         
-        #breakpoint()
-        isfirst = False
-        if self.calledextr != True:
-            self.calledextr = True
-            isfirst = True
-
+        #print(f"ENTER extract_solution with goals: {goals}")
+        
         level = self.graph.levels[index]
         if not self.graph.non_mutex_goals(goals, index):
             self.no_goods.append((level, goals))
+            #print("  Level failed, goals are all mutex")
             return
 
         level = self.graph.levels[index - 1]
@@ -1414,32 +1523,46 @@ class GraphPlan:
             actions.append(level.next_state_links[goal])
 
         # `all_actions` selects elements from each list and creates a new list of actions that satisfies all goals at next level
-        all_actions = list(itertools.product(*actions)) # Why only product? Why not all subsets of non-mutex preconditions?
-        
-        #breakpoint()
+        #all_actions = list(itertools.product(*actions)) # Why only product? Why not all subsets of non-mutex preconditions?
+        #all_actions = powerset_product(actions)
+        print(len(list(itertools.product(*actions))))
+        all_actions = [*list(itertools.product(*actions)), *(powerset_product(actions)[0:5])]
+        print(len(all_actions))
 
         # Filter out non-mutex actions
         non_mutex_actions = []
         for action_tuple in all_actions:
+            
+            #actlst = ["Move(R1, D2, D3)", "PIn(C2, D3)", "PHolding(R1)", "PIn(C3, R1)"]
+            #actlevellst = [str(repr(x)) for x in action_tuple]
+            #print(action_tuple)
+            #if all([x in actlevellst for x in actlst]):
+                #print("hi")
+                #breakpoint()
+                #print("hi")
+            
             # Get all pairs of actions in our satisfactory action_tuple
             action_pairs = itertools.combinations(list(set(action_tuple)), 2)
             non_mutex_actions.append(list(set(action_tuple)))
+            #if not any(["PickUp" in str(x.op) for x in action_tuple]):
+                #breakpoint()
             # acts = list(set(action_tuple))
             # print(f"CHECKING tuple {acts} at level {index-1}")
             for pair in list(action_pairs):
                 if set(pair) in level.mutex:
+                    #print(action_tuple, " failed due to ", pair, " in mutex")
                     non_mutex_actions.pop(-1)
                     break # If any actions are mutex, remove the entire tuple from our list
-
-        # print(f"NON-MUTEX ACTION SETS at level {index}: {non_mutex_actions}")
-        # print(len(non_mutex_actions), non_mutex_actions)
-        # breakpoint()
+                
+        if len(non_mutex_actions) == 0:
+            #print("  Level failed: No actions create state and are non-mutex")
+            return
 
         # At this point, the non_mutex_actions contains a list of lists of valid actions that are all non-mutex and satisfy our goal state
 
-        #breakpoint()
-
         # Recursion
+        
+        #print(f"Depth of solutions: {len(self.graph.levels)}, current level = {index-1}")
         for action_list in non_mutex_actions:
             if [action_list, index] not in self.solution:
                 self.solution.append([action_list, index])
@@ -1454,33 +1577,17 @@ class GraphPlan:
                 elif (level, new_goals) in self.no_goods:
                     return
                 else:
-                    # print(f"  Recursing with new goal: {new_goals}")
-                    self.extract_solution(new_goals, index - 1) # DFS search
+                    #print(f"  Goals achieved: {goals}, actions used: {action_list}")
+                    #breakpoint()
+                    self.extract_solution(new_goals, index - 1) # DFS search; goals at this layer, index of this layer
             
                 
-        print("self.solution = ", self.solution)
-        print("self.nogoods = ", self.no_goods)
-        #if isfirst:
-        #    breakpoint()
-
-        """
-        # Level-Order multiple solutions
-        solution = []
-        for item in self.solution: # self.solution will contain sets of actions at a level.
-            if item[1] == -1: # We are at the bottom of the tree in recursion, and we create a new unique solution for this leaf node
-                solution.append([])
-                solution[-1].append(item[0]) 
-            else: # We are at an intermediate node, we add it to our last solution (but not other possible nodes?)
-                solution[-1].append(item[0])
-                
+        # Exit prior to computing solutions if we are not at the root.
+        if not root:
+            return
+        
+        #print(self.solution)
         #breakpoint()
-
-        for num, item in enumerate(solution):
-            item.reverse()
-            solution[num] = item
-
-        return solution
-        """
 
         if not self.solution:
             return []
@@ -1488,7 +1595,7 @@ class GraphPlan:
         # 1. Determine the leaf level and the expected length of a valid plan.
         leaf_level = min(item[1] for item in self.solution)
         expected_plan_length = abs(leaf_level)
-        print(f"DEBUG: Target leaf level: {leaf_level}, Expected plan length: {expected_plan_length}\n")
+        #print(f"DEBUG: Target leaf level: {leaf_level}, Expected plan length: {expected_plan_length}\n")
 
 
         completed_plans = []
@@ -1499,25 +1606,25 @@ class GraphPlan:
         # 2. Iterate through the ordered search log.
         for i, item in enumerate(self.solution):
             actions, level = item
-            print(f"--- Iteration {i+1} ---")
-            print(f"Processing Item: {item}")
-            print(f"Path BEFORE changes: {current_path}")
+            #print(f"--- Iteration {i+1} ---")
+            #print(f"Processing Item: {item}")
+            #print(f"Path BEFORE changes: {current_path}")
 
             # 3. Rewind the current path to handle backtracks.
             rewound = False
             while current_path and level != current_path[-1][1] - 1:
                 if not rewound:
-                    print(f"-> Backtrack detected (Lvl {level} doesn't follow Lvl {current_path[-1][1]}). Rewinding path...")
+                    #print(f"-> Backtrack detected (Lvl {level} doesn't follow Lvl {current_path[-1][1]}). Rewinding path...")
                     rewound = True
                 popped_item = current_path.pop()
-                print(f"   ...Popped: {popped_item}")
+                #print(f"   ...Popped: {popped_item}")
             
-            if rewound:
-                print(f"Path AFTER rewind: {current_path}")
+            #if rewound:
+            #    print(f"Path AFTER rewind: {current_path}")
 
             # 4. Append the current item to form the new active path.
             current_path.append(item)
-            print(f"Appending item. New Path is now: {current_path}\n")
+            #print(f"Appending item. New Path is now: {current_path}\n")
             
             # 5. Check if the active path has a valid structure.
             is_rooted = current_path[0][1] == -1
@@ -1526,7 +1633,7 @@ class GraphPlan:
 
             # Only proceed if the path is structurally sound.
             if is_rooted and is_grounded and is_contiguous:
-                print(f"-> Path is structurally valid. Performing final initial state check...")
+                #print(f"-> Path is structurally valid. Performing final initial state check...")
                 
                 # 6. Final Check: Verify first actions' preconditions against the initial state.
                 initial_state_satisfied = True
@@ -1538,14 +1645,14 @@ class GraphPlan:
                         initial_state_satisfied = False
                         preconditions = []
                     preconditions = set(preconditions)
-                    print("Testing preconditions: ", preconditions, ", and initial_state: ", initial_state)
+                    #print("Testing preconditions: ", preconditions, ", and initial_state: ", initial_state)
                     if not preconditions.issubset(initial_state):
                         initial_state_satisfied = False
-                        print(f"   ❗️ Path failed validation. Action '{action}' preconditions {preconditions} are not met by initial state.")
+                        #print(f"   ❗️ Path failed validation. Action '{action}' preconditions {preconditions} are not met by initial state.")
                         break
                 
                 if initial_state_satisfied:
-                    print(f"   ✅ Success! Plan fully verified and found: {current_path}\n")
+                    #print(f"   ✅ Success! Plan fully verified and found: {current_path}\n")
                     completed_plans.append(list(current_path))
         
         print(f"--- Loop Finished ---")
@@ -1559,67 +1666,8 @@ class GraphPlan:
             solution.append(action_plan)
 
         return solution
-
     """
-    def extract_solution(self, goals, index):
-        "Extracts the solution"
 
-        level = self.graph.levels[index]
-        if not self.graph.non_mutex_goals(goals, index):
-            self.no_goods.append((level, goals))
-            return
-
-        level = self.graph.levels[index - 1]
-
-        # Create all combinations of actions that satisfy the goal
-        actions = []
-        for goal in goals:
-            actions.append(level.next_state_links[goal])
-
-        all_actions = list(itertools.product(*actions))
-
-        # Filter out non-mutex actions
-        non_mutex_actions = []
-        for action_tuple in all_actions:
-            action_pairs = itertools.combinations(list(set(action_tuple)), 2)
-            non_mutex_actions.append(list(set(action_tuple)))
-            for pair in action_pairs:
-                if set(pair) in level.mutex:
-                    non_mutex_actions.pop(-1)
-                    break
-
-        # Recursion
-        for action_list in non_mutex_actions:
-            if [action_list, index] not in self.solution:
-                self.solution.append([action_list, index])
-
-                new_goals = []
-                for act in set(action_list):
-                    if act in level.current_action_links:
-                        new_goals = new_goals + level.current_action_links[act]
-
-                if abs(index) + 1 == len(self.graph.levels):
-                    return
-                elif (level, new_goals) in self.no_goods:
-                    return
-                else:
-                    self.extract_solution(new_goals, index - 1)
-
-        # Level-Order multiple solutions
-        solution = []
-        for item in self.solution:
-            if item[1] == -1:
-                solution.append([])
-                solution[-1].append(item[0])
-            else:
-                solution[-1].append(item[0])
-
-        for num, item in enumerate(solution):
-            item.reverse()
-            solution[num] = item
-
-        return solution
-    """
 
     def goal_test(self, kb):
         goal_achieved = all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
@@ -1639,6 +1687,8 @@ class GraphPlan:
                     self.graph.planning_problem.goals, -1)):
 
                 print("SOLVED, EXTRACTING SOLUTION")
+                #print(self.graph)
+                #breakpoint()
                 # print(self.graph.non_mutex_goals(self.graph.planning_problem.goals, -1))
                 # self.graph.levels[-1](self.graph.planning_problem.actions, self.graph.objects)
                 # print(self.graph)
@@ -1647,18 +1697,17 @@ class GraphPlan:
                 # print("Next state links:", self.graph.levels[-1].next_state_links)
                 # print("Current action links:", self.graph.levels[-1].current_action_links)
                 # print(f"Extract Solution from {len(self.graph.levels)} levels, {len(self.graph.levels) - 1} actions")
-                solution = self.extract_solution(self.graph.planning_problem.goals, -1)
-                self.calledextr = False
+                #breakpoint()
+                solution = self.extract_solution(self.graph.planning_problem.goals, -1, True)
                 if solution:
                     print(f"SOLUTION::::!!!!!!!!!!!!!!!!\n{solution}")
-                    return solution
+                    return [solution]
 
             # print(len(self.graph.levels))
             if len(self.graph.levels) >= 2 and self.check_leveloff():
                 # breakpoint()
                 return None
 
-# Carwyns mods
 class Linearize:
 
     def __init__(self, planning_problem):
@@ -1725,266 +1774,6 @@ class Linearize:
                 break
             
         return ordered_solution
-
-
-# BILLS CLASS
-
-"""
-class Linearize:
-
-    def __init__(self, planning_problem):
-        self.planning_problem = planning_problem
-
-    def filter(self, solution):
-        "Filter out persistence actions from a solution"
-
-        new_solution = []
-        for section in solution[0]:
-            new_section = []
-            for operation in section:
-                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
-                    new_section.append(operation)
-            new_solution.append(new_section)
-        return new_solution
-
-    def orderlevel(self, level, planning_problem):
-        "Return valid linear order of actions for a given level"
-
-        for permutation in itertools.permutations(level):
-            print(f"TRYING PARTIAL PLAN: {permutation}")  ## Bill's hack                
-            temp = copy.deepcopy(planning_problem)
-            count = 0
-            ## print(f"PERMUTATION: {permutation}")  ## Bill's hack
-            for action in permutation:
-                try:
-                    # print(f"TRY ACTION: {action}")  ## Bill's hack
-                    temp.act(action)
-                    count += 1
-                    # print(f"TRY ACTION: {action} SUCCESS!")  ## Bill's hack
-                except:
-                    # print(f"TRY ACTION: {action} FAIL!")  ## Bill's hack
-                    count = 0
-                    temp = copy.deepcopy(planning_problem)
-                    continue     ##break
-            if count == len(permutation):
-                print(f"\nSUCCESSFUL PARTIAL PLAN ORDERING: {permutation}")  ## Bill's hack
-                return list(permutation), temp
-        print(f"NO SUCCESSFUL PARTIAL PLAN: {level}")  ## Bill's hack                
-        return None, planning_problem  ## added planning_problem... its gotta return a planning problem and start over if it fails, but maybe this is saying return fail and the unsolved planning problem
-
-    def execute(self):
-        "Finds total-order solution for a planning graph"
-
-        graphPlan_solution = GraphPlan(self.planning_problem).execute()
-        breakpoint()
-
-        ## Bill's stuff from playing around
-        ## print(f"UNFILTERED PLAN: {graphPlan_solution}")  ## Bill's hack
-        ## pnl(graphPlan_solution)
-        ## for possible_plan in graphPlan_solution:
-        ##    possible_plan = [possible_plan]
-        ##    filtered_possible_plan = self.filter(possible_plan)
-        ##    print(f"POSSIBLE PLAN: {filtered_possible_plan}")  ## Bill's hack
-        ## flattened_graphplan = self.filter(graphPlan_solution)
-        ## flattened_graphplan = sum(graphPlan_solution, [])  ## Bill's hack
-        ## flattened_graphplan = sum(flattened_graphplan, [])  ## Bill's hack
-        ##  flattened_graphplan = [flattened_graphplan]
-        ## graphPlan_solution = [flattened_graphplan]  ## Bill's hack
-        ##  pnl(flattened_graphplan)
-
-        ## I think I have to go over all permutations of possbile partial graphplans
-        
-        for possible_plan in itertools.permutations(graphPlan_solution):   ## Bill's hack
-
-            ## possible_plan = [possible_plan]  ## Bill's hack, stuff below expect a list with one element which is also a list
-            ## filtered_solution = self.filter(graphPlan_solution)   # original
-
-            filtered_solution = self.filter(possible_plan)   # my mod
-
-            print(f"TRYING FILTERED PLAN: {filtered_solution}")  ## Bill's hack
-                        
-            ## filtered_solution = self.filter(possible_plan)  # mod
-            ## print(f"\nFILTERED PLAN: {filtered_solution}")  ## Bill's hack
-            ## pnl(filtered_solution)
-            ## filtered_solution = possible_plan
-            
-            ordered_solution = []
-            planning_problem = self.planning_problem
-            for level in filtered_solution:
-
-                ## print(f"TRYING SOLUTION LEVEL: {level}")  ## Bill's hack
-
-                ## the below is a key line, the key line
-                level_solution, planning_problem = self.orderlevel(level, planning_problem)  ## actions get applied
-                if not level_solution:  # This checks if level_solution is None or an empty list
-                    print(f"PLAN FAIL: {filtered_solution}")  ## Bill's hack
-                    continue   ## Bill's hack!!  if empty, continue looking.  
-
-                print(f"LEVEL SOLUTION: {level_solution}")  ## Bill's hack
-                ##print(f"CURRENT STATE: {planning_problem.initial}\n")  ## Bill's hack                
-                ## for action in level_solution:
-                ##    print(f"APPLY ACTION: {action}")  ## Bill's hack                    
-                ##    planning_problem.act(action)           # complete guess, apply action to the problem and keep going
-
-                ## I think we need to apply the plan to the planning problem and modify it
-                for element in level_solution:   
-                    ordered_solution.append(element)
-
-            if not ordered_solution:
-                continue  ## no plan possible from the partial plan at the level
-            else:
-                print(f"WORKING SOL'N: {ordered_solution}")  ## Bill's hack
-                break
-            
-        return ordered_solution
-"""
-
-"""
-# GPT Modified
-
-class Linearize:
-
-    def __init__(self, planning_problem):
-        self.planning_problem = planning_problem
-        
-    def __str__(self):
-        return f"<Linearize for problem: {self.planning_problem}>"
-
-    def filter(self, solution):
-        "Filter out persistence actions from a solution"
-
-        new_solution = []
-        for section in solution[0]:
-            new_section = []
-            for operation in section:
-                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
-                    new_section.append(operation)
-            new_solution.append(new_section)
-        return new_solution
-
-    def orderlevel(self, level, planning_problem):
-        "Return valid linear order of actions for a given level"
-
-        # Iterate through all permutations of actions in the level
-        for permutation in itertools.permutations(level):
-            # Create a deep copy of the planning problem for this permutation
-            temp = copy.deepcopy(planning_problem)
-            is_valid_permutation = True
-
-            # Attempt to apply each action in the current permutation
-            for action in permutation:
-                try:
-                    temp.act(action)
-                except Exception:
-                    # If an action fails, this entire permutation is invalid.
-                    is_valid_permutation = False
-                    break  # Exit the inner loop immediately and try the next permutation.
-
-            # If the inner loop completed without any failures
-            if is_valid_permutation:
-                # This is a valid linear ordering for the current level
-                return list(permutation), temp
-
-        # If no valid permutation was found after checking all possibilities
-        return None, None
-
-    def execute(self):
-        "Finds a total-order solution for a planning graph."
-        # This might return multiple solutions, let's call it a list of "raw plans"
-        raw_plans = GraphPlan(self.planning_problem).execute()
-
-        if not raw_plans:
-            return None  # No plans were found by GraphPlan
-
-        # Iterate through each raw plan returned by GraphPlan
-        for raw_plan in raw_plans:
-            # The filter and ordering logic should be applied to each plan one by one.
-            # This is a good place for a helper function.
-            ordered_plan = self._attempt_linearization(raw_plan)
-            if ordered_plan:
-                return ordered_plan  # Return the first successful plan
-
-        return None  # No valid linearization was found for any of the plans
-
-    def _attempt_linearization(self, raw_plan):
-        "Helper function to linearize a single raw plan."
-        # Filter out persistence actions
-        filtered_plan = self._filter(raw_plan)
-        ordered_solution = []
-        planning_problem = copy.deepcopy(self.planning_problem)
-
-        # Order actions level by level
-        for level in filtered_plan:
-            level_solution, planning_problem = self.orderlevel(level, planning_problem)
-            if level_solution is None:
-                return None  # Failed to order this plan, try the next one
-            ordered_solution.extend(level_solution)
-        return ordered_solution
-
-    def _filter(self, raw_plan):
-        "Filter out persistence actions from a single raw plan."
-        new_solution = []
-        for section in raw_plan:
-            new_section = []
-            for operation in section:
-                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
-                    new_section.append(operation)
-            new_solution.append(new_section)
-        return new_solution
-"""
-
-"""
-# ORIGINAL
-
-class Linearize:
-
-    def __init__(self, planning_problem):
-        self.planning_problem = planning_problem
-
-    def filter(self, solution):
-        "Filter out persistence actions from a solution"
-
-        new_solution = []
-        for section in solution[0]:
-            new_section = []
-            for operation in section:
-                if not (operation.op[0] == 'P' and operation.op[1].isupper()):
-                    new_section.append(operation)
-            new_solution.append(new_section)
-        return new_solution
-
-    def orderlevel(self, level, planning_problem):
-        "Return valid linear order of actions for a given level"
-
-        for permutation in itertools.permutations(level):
-            temp = copy.deepcopy(planning_problem)
-            count = 0
-            for action in permutation:
-                try:
-                    temp.act(action)
-                    count += 1
-                except:
-                    count = 0
-                    temp = copy.deepcopy(planning_problem)
-                    break
-            if count == len(permutation):
-                return list(permutation), temp
-        return None
-
-    def execute(self):
-        "Finds total-order solution for a planning graph"
-
-        graphPlan_solution = GraphPlan(self.planning_problem).execute()
-        filtered_solution = self.filter(graphPlan_solution)
-        ordered_solution = []
-        planning_problem = self.planning_problem
-        for level in filtered_solution:
-            level_solution, planning_problem = self.orderlevel(level, planning_problem)
-            for element in level_solution:
-                ordered_solution.append(element)
-
-        return ordered_solution
-"""
 
 def linearize(solution):
     """Converts a level-ordered solution into a linear solution"""
