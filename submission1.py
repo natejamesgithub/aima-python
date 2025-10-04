@@ -6,6 +6,7 @@ from planning import *
 from logic import *
 
 from submission1_test import verify_solution
+from planning_envs import *
 
 # Problem 4: Planning 
 

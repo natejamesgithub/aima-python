@@ -1,6 +1,7 @@
 import sys, os
 import collections
 from planning import *
+from planning_envs import *
 from logic import *
 
 import pytest
@@ -108,3 +109,6 @@ def test_double_tennis_problem_simple3():
 def test_double_tennis_problem():
     P = double_tennis_problem()
     verify_solution(P)
+
+def test_failing_plan():
+    pass
