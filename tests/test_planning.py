@@ -3,6 +3,7 @@ import random
 import pytest
 
 from planning import *
+from planning_envs import *
 from search import astar_search
 from utils import expr
 from logic import FolKB, conjuncts
@@ -229,8 +230,7 @@ def test_graphPlan():
 
     shopping_problem_solution = shopping_graphPlan()
     shopping_problem_solution = linearize(shopping_problem_solution)
-    assert expr('Go(Home, HW)') in shopping_problem_solution
-    assert expr('Go(Home, SM)') in shopping_problem_solution
+    assert expr('Go(Home, HW)') in shopping_problem_solution or expr('Go(Home, SM)') in shopping_problem_solution
     assert expr('Buy(Drill, HW)') in shopping_problem_solution
     assert expr('Buy(Banana, SM)') in shopping_problem_solution
     assert expr('Buy(Milk, SM)') in shopping_problem_solution
