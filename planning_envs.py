@@ -239,7 +239,7 @@ def have_cake_and_eat_cake_too():
     >>>
     """
 
-    return PlanningProblem(initial='Have(Cake) & ~Eaten(Cake)',
+    return PlanningProblem(initial='Have(Cake)',
                            goals='Have(Cake) & Eaten(Cake)',
                            actions=[Action('Eat(Cake)',
                                            precond='Have(Cake)',
@@ -370,27 +370,25 @@ def double_tennis_problem():
     >>> dtp = double_tennis_problem()
     >>> goal_test(dtp.goals, dtp.initial)
     False
-    >>> dtp.act(expr('Go(A, RightBaseLine, LeftBaseLine)'))
+    >>> dtp.act(expr('Go(A, RightBaseLine, LeftNet)'))
     >>> dtp.act(expr('Hit(A, Ball, RightBaseLine)'))
     >>> goal_test(dtp.goals, dtp.initial)
     False
-    >>> dtp.act(expr('Go(A, LeftNet, RightBaseLine)'))
+    >>> dtp.act(expr('Go(A, LeftBaseLine, RightBaseLine)'))
     >>> goal_test(dtp.goals, dtp.initial)
     True
-    >>>
     """
 
     return PlanningProblem(
-        initial='At(A, LeftNet) & At(B, RightNet) & Approaching(ball, RightBaseline)',
-        goals='At(A, LeftBaseline) & At(B, LeftNet) & Returned(ball)',   
+        initial='At(A, LeftNet) & At(B, RightNet) & Approaching(Ball, RightBaseLine)',
+        goals='At(A, LeftBaseLine) & At(B, LeftNet) & Returned(Ball)',
         actions=[Action('Hit(actor, ball, loc)',
                         precond='Approaching(ball, loc) & At(actor, loc)',
                         effect='Returned(ball)'),
                  Action('Go(actor, to, loc)',
                         precond='At(actor, loc)',
                         effect='At(actor, to) & ~At(actor, loc)')],
-        domain="Loc(LeftBaseline)")
-
+        domain="Loc(LeftBaseLine)")
 
 def rush_hour():
     """

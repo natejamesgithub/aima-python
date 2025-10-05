@@ -32,7 +32,19 @@ def test_logistics_manual():
     assert P.goal_test() == False
     P.act(expr('PutDown(R1, C3, D3)'))
     assert P.goal_test() == True
-    
+
+def test_double_tennis_manual():
+    p = double_tennis_problem()
+
+    assert not p.goal_test()
+    p.act(expr('Go(A, RightBaseLine, LeftNet)'))
+    assert not p.goal_test()
+    p.act(expr('Hit(A, Ball, RightBaseLine)'))
+    assert not p.goal_test()
+    p.act(expr('Go(A, LeftBaseLine, RightBaseLine)'))
+    assert not p.goal_test()
+    p.act(expr('Go(B, LeftNet, RightNet)'))
+    assert p.goal_test()
 
 
 def test_generalized_blocksworld_manual():
@@ -85,6 +97,10 @@ def test_shopping_problem():
 
 def test_socks_and_shoes():
     P = socks_and_shoes()
+    verify_solution(P)
+
+def test_have_cake_and_eat_cake_too():
+    P = have_cake_and_eat_cake_too()
     verify_solution(P)
 
 @pytest.mark.parametrize("goal_state", [
@@ -194,7 +210,7 @@ def test_rush_hour_optimized():
     verify_solution(P)
 
 
-def test_planner_handles_failure_gracefully():
+def test_planner_leveloff():
     def run_planner_in_queue(problem, queue):
         queue.put(Linearize(problem).execute())
 
@@ -212,44 +228,35 @@ def test_planner_handles_failure_gracefully():
     if proc.is_alive():
         proc.terminate()
         proc.join()
-        assert False
+        assert False # Ran for 3 seconds and didn't exit in leveloff
     else:
         result = result_queue.get()
-        breakpoint()
         assert result is None or result == [] or result == [[]]
         
-        
-def impossible_cake_problem():
-    """
-    An impossible planning problem to demonstrate GraphPlan's level-off detection.
-
-    The goal is to both Have(Cake) and Eaten(Cake). However, the only available
-    action, Eat(Cake), has the effect of ~Have(Cake). The propositions
-    Have(Cake) and Eaten(Cake) will become mutually exclusive at the first
-    level, and the graph will quickly level off, proving the goal is unreachable.
-    """
-    return PlanningProblem(
-        initial='Have(Cake) & ~Eaten(Cake)',
-        goals='Have(Cake) & Eaten(Cake)',
-        actions=[
-            Action('Eat(Cake)',
-                   precond='Have(Cake)',
-                   effect='Eaten(Cake) & ~Have(Cake)')
-        ]
-    )
-
-def test_impossible_cake_exits_early():
+def test_impossible_cake_exits_via_leveloff():
     """
     Verify that GraphPlan terminates and returns None for the impossible cake problem.
     """
-    problem = impossible_cake_problem()
-    # For an impossible problem that levels off, execute() should return None.
-    solution = GraphPlan(problem).execute()
-    
-    print(f"\nTesting impossible_cake_problem...")
-    if solution is None:
-        print("SUCCESS: The algorithm correctly determined the problem is unsolvable and leveled off.")
-    else:
-        print(f"FAILURE: A solution was found, which should be impossible. Solution: {solution}")
 
+    def impossible_cake_problem():
+        """
+        An impossible planning problem to demonstrate GraphPlan's level-off detection.
+
+        The goal is to both Have(Cake) and Eaten(Cake). However, the only available
+        action, Eat(Cake), has the effect of ~Have(Cake). The propositions
+        Have(Cake) and Eaten(Cake) will become mutually exclusive at the first
+        level, and the graph will quickly level off, proving the goal is unreachable.
+        """
+        return PlanningProblem(
+            initial='Have(Cake) & ~Eaten(Cake)',
+            goals='Have(Cake) & Eaten(Cake)',
+            actions=[
+                Action('Eat(Cake)',
+                    precond='Have(Cake)',
+                    effect='Eaten(Cake) & ~Have(Cake)')
+            ]
+        )
+
+    problem = impossible_cake_problem()
+    solution = Linearize(problem).execute()
     assert solution is None

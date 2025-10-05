@@ -514,9 +514,12 @@ def test_double_tennis():
     p = double_tennis_problem()
     assert not goal_test(p.goals, p.initial)
 
-    solution = [expr('Go(A, RightBaseLine, LeftBaseLine)'),
-                expr('Hit(A, Ball, RightBaseLine)'),
-                expr('Go(A, LeftNet, RightBaseLine)')]
+    solution = [
+        expr('Go(A, RightBaseLine, LeftNet)'),
+        expr('Hit(A, Ball, RightBaseLine)'),
+        expr('Go(A, LeftBaseLine, RightBaseLine)'),
+        expr('Go(B, LeftNet, RightNet)')
+    ]
 
     for action in solution:
         p.act(action)

@@ -493,13 +493,10 @@ class Level:
         self.next_state_links = {}
         
         # mutually exclusive actions
-        self.mutex = []
+        self.action_mutexes = []
 
         # mutually exclusive states
         self.state_mutexes = []
-
-        # mutually exclusive next states
-        self.next_state_mutexes = []
         
     def __call__(self, actions, objects):
         self.build(actions, objects)
@@ -508,13 +505,12 @@ class Level:
     def __str__(self):
         state_str = ", ".join(str(s) for s in self.current_state)
         action_str = ", ".join(str(a) for a in self.current_action_links.keys())
-        mutex_str = ", ".join([str(m) for m in self.mutex])
+        mutex_str = ", ".join([str(m) for m in self.action_mutexes])
         return (
             f"<Level>\n"
             f"  Current State: {{{state_str}}}\n"
             f"  Actions: {{{action_str}}}\n"
             f"  Mutex: {{{mutex_str}}}\n"
-            f"  Next state mutexes: {{{self.next_state_mutexes}}}\n"
         )
 
     __repr__ = __str__
@@ -535,8 +531,7 @@ class Level:
     def find_mutex(self):
         "Finds mutually exclusive actions"
 
-        self.state_mutexes = self.mutex # save state mutexes
-        self.mutex = [] # clear out effects from state mutex prior computation
+        self.action_mutexes = [] # clear out effects from state mutex prior computation
 
         # Competing Needs - two actions are mutex if any of their preconditions are mutex at the previous state level
         for a1, a2 in itertools.combinations(self.current_action_links.keys(), 2):
@@ -545,8 +540,8 @@ class Level:
 
             if any({p, q} in self.state_mutexes for p in preconds_a1 for q in preconds_a2):
                 mutex_pair = {a1, a2}
-                if mutex_pair not in self.mutex:
-                    self.mutex.append(mutex_pair)
+                if mutex_pair not in self.action_mutexes:
+                    self.action_mutexes.append(mutex_pair)
 
         # Interference AND Inconsistent Effects Mutex Calculation
         for a1, a2 in itertools.combinations(self.next_action_links.keys(), 2):
@@ -574,8 +569,8 @@ class Level:
 
             if interference:
                 mutex_pair = {a1, a2}
-                if mutex_pair not in self.mutex:
-                    self.mutex.append(mutex_pair)
+                if mutex_pair not in self.action_mutexes:
+                    self.action_mutexes.append(mutex_pair)
 
     def populate_prop_mutexes(self):
         "Compute the next level's proposition mutexes based on our current action mutexes"
@@ -593,7 +588,7 @@ class Level:
                 continue
 
             # if any two actions that lead to these states is not mutex, do not add a mutex to these states.
-            if all([{a1,a2} in self.mutex or {a2,a1} in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
+            if all([{a1,a2} in self.action_mutexes or {a2,a1} in self.action_mutexes for a1 in acts_to_s1 for a2 in acts_to_s2]):
                 mutex_pair = {s1, s2}
                 if mutex_pair not in state_mutex:
                     state_mutex.append(mutex_pair)
@@ -607,7 +602,6 @@ class Level:
                     if mutex_pair not in state_mutex:
                         state_mutex.append(mutex_pair)
 
-        self.next_state_mutexes = state_mutex
         return state_mutex
 
     def prune_invalid_actions(self):
@@ -741,7 +735,7 @@ class Graph:
         last_level(self.planning_problem.actions, self.objects) # populate state/actions/mutexes
         last_level.prune_invalid_actions()
         new_level = last_level.perform_actions() # Create new level
-        new_level.mutex = last_level.populate_prop_mutexes() # Populate the mutexes for the next state level to come
+        new_level.state_mutexes = last_level.populate_prop_mutexes() # Populate the mutexes for the next state level to come
         self.levels.append(new_level)
 
     def non_mutex_goals(self, goals, index):
@@ -749,7 +743,7 @@ class Graph:
 
         goal_perm = itertools.combinations(goals, 2)
         for g in goal_perm:
-            if set(g) in self.levels[index].mutex:
+            if set(g) in self.levels[index].state_mutexes:
                 return False
         return True
 
@@ -790,8 +784,8 @@ class GraphPlan:
 
         same_state = set(level.current_state) == set(prev_level.current_state)
 
-        level_mutex = set(frozenset(m) for m in level.mutex)
-        prev_mutex = set(frozenset(m) for m in prev_level.mutex)
+        level_mutex = set(frozenset(m) for m in level.state_mutexes)
+        prev_mutex = set(frozenset(m) for m in prev_level.state_mutexes)
         same_mutex = level_mutex == prev_mutex
         
         print(f"leveloff, state_equality={same_state}, mutex_equality={same_mutex}, level_m_size={len(level_mutex)}, prev_level_m_size={len(prev_mutex)}")
@@ -821,7 +815,7 @@ class GraphPlan:
 
             is_mutex = False
             for a1, a2 in itertools.combinations(action_set, 2):
-                if {a1, a2} in level.mutex:
+                if {a1, a2} in level.action_mutexes:
                     is_mutex = True
                     break
 
@@ -952,6 +946,10 @@ class Linearize:
         "Finds a total-order solution for a planning graph. Possibly not the only linearization possible."
 
         graphPlan_solution = GraphPlan(self.planning_problem).execute()
+
+        # Exit if no plan found
+        if graphPlan_solution is None:
+            return None
 
         for possible_plan in graphPlan_solution:
             filtered_solution = self.filter(possible_plan)
