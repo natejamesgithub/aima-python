@@ -468,7 +468,7 @@ class Level:
     states as pre-condition.
     """
 
-    def __init__(self, kb, is_first_layer=False):
+    def __init__(self, kb):
         """Initializes variables to hold state and action details of a level"""
 
         self.kb = kb
@@ -493,12 +493,12 @@ class Level:
         
         # mutually exclusive actions
         self.mutex = []
-        
-        self.is_first_layer = is_first_layer
-        self.next_state_mutexes = []
-        
+
         # mutually exclusive states
         self.state_mutexes = []
+
+        # mutually exclusive next states
+        self.next_state_mutexes = []
         
     def __call__(self, actions, objects):
         self.build(actions, objects)
@@ -533,9 +533,7 @@ class Level:
     
     def find_mutex(self):
         "Finds mutually exclusive actions"
-        "This function is only entered after state, actions at this level are computed."
-        "Therefore, we're computing it for the current state and current (state+1) action layer"
-        
+
         self.state_mutexes = self.mutex # save state mutexes
         self.mutex = [] # clear out effects from state mutex prior computation
 
@@ -543,12 +541,12 @@ class Level:
         for a1, a2 in itertools.combinations(self.current_action_links.keys(), 2):
             preconds_a1 = self.current_action_links[a1]
             preconds_a2 = self.current_action_links[a2]
-            
+
             if any({p, q} in self.state_mutexes for p in preconds_a1 for q in preconds_a2):
                 mutex_pair = {a1, a2}
                 if mutex_pair not in self.mutex:
                     self.mutex.append(mutex_pair)
-         
+
         # Interference AND Inconsistent Effects Mutex Calculation
         for a1, a2 in itertools.combinations(self.next_action_links.keys(), 2):
             preconds_a1 = self.current_action_links.get(a1, [])
@@ -577,7 +575,7 @@ class Level:
                 mutex_pair = {a1, a2}
                 if mutex_pair not in self.mutex:
                     self.mutex.append(mutex_pair)
-       
+
     def populate_prop_mutexes(self):
         "Compute the next level's proposition mutexes based on our current action mutexes"
 
@@ -588,11 +586,11 @@ class Level:
             s1, s2 = list(next_state_pair)
             acts_to_s1 = self.next_state_links.get(s1, [])
             acts_to_s2 = self.next_state_links.get(s2, [])
-            
+
             # ensure our mutexes only apply to pairs, not single states. 
             if acts_to_s1 == [] or acts_to_s2 == []:
                 continue
-            
+
             # if any two actions that lead to these states is not mutex, do not add a mutex to these states.
             if all([{a1,a2} in self.mutex or {a2,a1} in self.mutex for a1 in acts_to_s1 for a2 in acts_to_s2]):
                 mutex_pair = {s1, s2}
@@ -607,7 +605,6 @@ class Level:
                     mutex_pair = {s1, s2}
                     if mutex_pair not in state_mutex:
                         state_mutex.append(mutex_pair)
-        
 
         self.next_state_mutexes = state_mutex
         return state_mutex
@@ -668,7 +665,7 @@ class Level:
             self.next_action_links[p_expr] = [clause]
             self.current_state_links[clause] = [p_expr]
             self.next_state_links[clause] = [p_expr]
-            
+
         for a in actions:
             num_args = len(a.args)
             possible_args = tuple(itertools.permutations(objects, num_args))
@@ -706,9 +703,7 @@ class Level:
         "Performs the necessary actions and returns a new Level"
 
         new_kb = FolKB(list(set(self.next_state_links.keys())))
-        new_level = Level(new_kb)
-        
-        return new_level
+        return Level(new_kb)
 
 
 class Graph:
@@ -720,12 +715,12 @@ class Graph:
     def __init__(self, planning_problem):
         self.planning_problem = planning_problem
         self.kb = FolKB(planning_problem.initial)
-        self.levels = [Level(self.kb, True)]
+        self.levels = [Level(self.kb)]
         self.objects = set(arg for clause in self.kb.clauses for arg in clause.args)
 
     def __call__(self):
         self.expand_graph()
-        
+
     def __str__(self):
         levels_str = "\n".join(
             f"Level {i}:\n{str(level)}" for i, level in enumerate(self.levels)
@@ -748,7 +743,6 @@ class Graph:
         new_level.mutex = last_level.populate_prop_mutexes() # Populate the mutexes for the next state level to come
         self.levels.append(new_level)
 
-        
     def non_mutex_goals(self, goals, index):
         "Checks whether the goals are mutually exclusive"
 
@@ -757,7 +751,7 @@ class Graph:
             if set(g) in self.levels[index].mutex:
                 return False
         return True
-    
+
 
 class GraphPlan:
     """
@@ -770,9 +764,6 @@ class GraphPlan:
         self.graph = Graph(planning_problem)
         self.no_goods = []
         self.solution = []
-
-        global isFirstLayer
-        isFirstLayer = True
 
     def __str__(self):
         sol_str = (
@@ -791,6 +782,7 @@ class GraphPlan:
     def check_leveloff(self):
         """Checks if the graph has leveled off"""
 
+        # TODO: This check is not satisfactory
         check = (set(self.graph.levels[-1].current_state) == set(self.graph.levels[-2].current_state)) and \
             self.graph.levels[-1].mutex == self.graph.levels[-2].mutex
 
@@ -798,68 +790,58 @@ class GraphPlan:
             return True
 
     def _get_preconditions_for(self, action_set, level):
-        #Collects all unique preconditions for a given set of actions in a level.
+        """Collects all unique preconditions for a given set of actions in a level"""
         all_preconditions = set()
         for action in action_set:
-            # Assumes level.current_action_links maps an action to its preconditions
             preconditions = level.current_action_links.get(action, [])
             all_preconditions.update(preconditions)
         return all_preconditions
 
-
     def _find_valid_action_sets(self, goals, level):
-        #Finds sets of actions in the given level that are not mutually exclusive
-        #and that collectively satisfy all the goals.
+        """
+        Finds sets of actions in the given level that are not mutually exclusive
+        and that collectively satisfy all the goals.
+        """
         valid_sets = []
-        
-        # 1. Map each goal to the list of actions that can achieve it.
-        actions_for_goal = {g: level.next_state_links.get(g, []) for g in goals}
 
-        # 2. Generate combinations of actions that could potentially satisfy the goals.
-        # This creates a list of lists, where each inner list contains potential achievers for one goal.
+        actions_for_goal = {g: level.next_state_links.get(g, []) for g in goals}
         potential_action_groups = [actions_for_goal[g] for g in goals]
-        
-        # The cartesian product gives us tuples, where each tuple contains one action
-        # choice for each goal.
+
         for action_combination in itertools.product(*potential_action_groups):
-            # We only need the unique actions in the combination.
             action_set = set(action_combination)
 
-            # 3. Check for mutexes within this set of actions.
             is_mutex = False
             for a1, a2 in itertools.combinations(action_set, 2):
                 if {a1, a2} in level.mutex:
                     is_mutex = True
                     break
-            
-            # 4. If the set is non-mutex and we haven't already added it, it's a valid option.
+
             if not is_mutex and action_set not in valid_sets:
                 valid_sets.append(action_set)
-                
+
         return valid_sets
 
-    # Place this within your GraphPlan class
-    def extract_solution(self, goals, level_index, root=False):
-        #Primary method to start the solution extraction process.
-        #It calls the recursive helper and returns the final plan.
-        # Start the recursive search from the level where goals must be true
-        final_plan = self._extract_solution_recursive(set(goals), len(self.graph.levels)-1)
-        return final_plan
+    def extract_solution(self, goals):
+        """
+        Primary method to start the solution extraction process.
+        It calls the recursive helper and returns the final plan.
+        """
+        return self._extract_solution_recursive(set(goals), len(self.graph.levels)-1)
 
     # Place this within your GraphPlan class, replacing the previous version
     def _extract_solution_recursive(self, goals, level_index):
         """
         Recursively searches for a plan backwards from a given level using negative indexing.
-        
+
         Args:
             goals (set): The set of goal propositions to satisfy.
             level_index (int): level index
         """
-        
+
         #BASE CASE: We've recursed back to the initial proposition layer (Level 0).
         #The 'goals' at this point are the preconditions for the very first set of actions.
         #We must check if they exist in the initial state. No further recursion is needed.
-        
+
         if level_index == 0:
             initial_state = set(self.graph.levels[0].current_state)
             if goals.issubset(initial_state):
@@ -899,19 +881,17 @@ class GraphPlan:
 
     def goal_test(self, kb):
         goal_achieved = all(kb.ask(q) is not False for q in self.graph.planning_problem.goals)
-        # print(goal_achieved)
         return goal_achieved
 
     def execute(self):
         "Executes the GraphPlan algorithm for the given problem"
 
-        print("Forward Search")
         while True:
             self.graph.expand_graph()
             if (self.goal_test(self.graph.levels[-1].kb) and self.graph.non_mutex_goals(
                     self.graph.planning_problem.goals, -1)):
 
-                solution = self.extract_solution(self.graph.planning_problem.goals, -1, True)
+                solution = self.extract_solution(self.graph.planning_problem.goals)
                 if solution:
                     return [solution]
 
@@ -963,10 +943,10 @@ class Linearize:
         "Finds a total-order solution for a planning graph. Possibly not the only linearization possible."
 
         graphPlan_solution = GraphPlan(self.planning_problem).execute()
-        
+
         for possible_plan in graphPlan_solution:
             filtered_solution = self.filter(possible_plan)
-            
+
             ordered_solution = []
             # planning_problem will maintain the current state as we iterate over levels, allowing test application of actions
             planning_problem = self.planning_problem
@@ -984,12 +964,12 @@ class Linearize:
                 continue  ## no plan possible from the partial plan at the level
             else:
                 break
-            
+
         return ordered_solution
 
 def linearize(solution):
     """Converts a level-ordered solution into a linear solution"""
-    
+
     linear_solution = []
     for section in solution[0]:
         for operation in section:

@@ -9,7 +9,6 @@ import operator
 import os.path
 import random
 from itertools import chain, combinations
-import itertools
 from statistics import mean
 
 import numpy as np
