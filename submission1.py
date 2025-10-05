@@ -98,9 +98,9 @@ if __name__ == "__main__":
     #P = air_cargo()
     #P = double_tennis_problem()
     #P = have_cake_and_eat_cake_too()
-    init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
+    #init = "In(C1, R1) & In(C2, D1) & In(C3, D2) & In(R1, D1) & Holding(R1)"
     #goal_state = "In(C1,D1)"
-    goal_state = "In(C2, D3) & In(C3, D3)"
+    #goal_state = "In(C2, D3) & In(C3, D3)"
     #goal_state = "In(C1, D3) & In(C2, D3) & In(C3, D3)"
     # putdown(c1), pickup(c2), move(d3), putdown(c2), move(d2), pickup(c3), move(d3), putdown(c3)
     
@@ -109,14 +109,14 @@ if __name__ == "__main__":
     #goal_state = "In(C3, D3)"
     # putdown c1, move r1 to d2, pickup c3 in d2, move robot to d1, putdown c3
     #goal_state = "In(C1, D2) & In(C3, D3)"
-    P = logisticsPlanCustom(init, goal_state)
+    #P = logisticsPlanCustom(init, goal_state)
     
     # PickUp(R1, C2, D2) in level 1 is NOT (shouldn't be) POSSIBLE due to mutexes.
     """
     P = PlanningProblem(initial = init,
                     goals = goal_state,
-                    actions=[Action('PickUp(r, c, d)',
-                                    precond='In(r, d) & In (c, d) & ~Holding(r)',
+                    precond='In(r, d) & In (c, d) & ~H
+                                   olding(r)',
                                     effect='Holding(r) & ~In(c, d) & In(c, r)', 
                                     domain='Robot(r) & Place(d) & Container(c)'),
                              Action('PutDown(r, c, d)', 
@@ -130,9 +130,14 @@ if __name__ == "__main__":
                 domain='Container(C1) & Container(C2) & Place(D1) & Place(D2) & Robot(R1)')
     """
     #P = double_tennis_problem_simple2() 
-    #GraphPlan(P).execute()
-    print(Linearize(P).execute())
+    
+    #P = rush_hour()
+    P = rush_hour_optimized()
     #verify_solution(P)
+    
+    #GraphPlan(P).execute()
+    #print(Linearize(P).execute())
+    verify_solution(P)
 
  
 """
