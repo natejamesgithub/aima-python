@@ -207,11 +207,49 @@ def test_planner_handles_failure_gracefully():
     result_queue = Queue()
     proc = Process(target=run_planner_in_queue, args=(P, result_queue))
     proc.start()
-    proc.join(timeout=10)
+    proc.join(timeout=3)
 
     if proc.is_alive():
         proc.terminate()
         proc.join()
+        assert False
     else:
         result = result_queue.get()
+        breakpoint()
         assert result is None or result == [] or result == [[]]
+        
+        
+def impossible_cake_problem():
+    """
+    An impossible planning problem to demonstrate GraphPlan's level-off detection.
+
+    The goal is to both Have(Cake) and Eaten(Cake). However, the only available
+    action, Eat(Cake), has the effect of ~Have(Cake). The propositions
+    Have(Cake) and Eaten(Cake) will become mutually exclusive at the first
+    level, and the graph will quickly level off, proving the goal is unreachable.
+    """
+    return PlanningProblem(
+        initial='Have(Cake) & ~Eaten(Cake)',
+        goals='Have(Cake) & Eaten(Cake)',
+        actions=[
+            Action('Eat(Cake)',
+                   precond='Have(Cake)',
+                   effect='Eaten(Cake) & ~Have(Cake)')
+        ]
+    )
+
+def test_impossible_cake_exits_early():
+    """
+    Verify that GraphPlan terminates and returns None for the impossible cake problem.
+    """
+    problem = impossible_cake_problem()
+    # For an impossible problem that levels off, execute() should return None.
+    solution = GraphPlan(problem).execute()
+    
+    print(f"\nTesting impossible_cake_problem...")
+    if solution is None:
+        print("SUCCESS: The algorithm correctly determined the problem is unsolvable and leveled off.")
+    else:
+        print(f"FAILURE: A solution was found, which should be impossible. Solution: {solution}")
+
+    assert solution is None

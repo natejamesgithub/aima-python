@@ -303,6 +303,7 @@ class ForwardPlan(search.Problem):
                                                    actions=[action.relaxed() for action in
                                                             self.planning_problem.actions])
         try:
+            # Relies upon GraphPlan exiting when leveled off
             return len(linearize(GraphPlan(relaxed_planning_problem).execute()))
         except:
             return np.inf
@@ -781,13 +782,21 @@ class GraphPlan:
 
     def check_leveloff(self):
         """Checks if the graph has leveled off"""
+        if len(self.graph.levels) < 2:
+            return False
 
-        # TODO: This check is not satisfactory
-        check = (set(self.graph.levels[-1].current_state) == set(self.graph.levels[-2].current_state)) and \
-            self.graph.levels[-1].mutex == self.graph.levels[-2].mutex
+        level = self.graph.levels[-1]
+        prev_level = self.graph.levels[-2]
 
-        if check:
-            return True
+        same_state = set(level.current_state) == set(prev_level.current_state)
+
+        level_mutex = set(frozenset(m) for m in level.mutex)
+        prev_mutex = set(frozenset(m) for m in prev_level.mutex)
+        same_mutex = level_mutex == prev_mutex
+        
+        print(f"leveloff, state_equality={same_state}, mutex_equality={same_mutex}, level_m_size={len(level_mutex)}, prev_level_m_size={len(prev_mutex)}")
+
+        return same_state and same_mutex 
 
     def _get_preconditions_for(self, action_set, level):
         """Collects all unique preconditions for a given set of actions in a level"""
@@ -895,7 +904,7 @@ class GraphPlan:
                 if solution:
                     return [solution]
 
-            if len(self.graph.levels) >= 2 and self.check_leveloff():
+            if self.check_leveloff():
                 return None
 
 class Linearize:
