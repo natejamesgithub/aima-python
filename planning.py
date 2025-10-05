@@ -4,17 +4,13 @@ import copy
 import itertools
 from collections import deque, defaultdict
 from functools import reduce as _reduce
-
 import numpy as np
 
 import search
 from csp import sat_up, NaryCSP, Constraint, ac_search_solver, is_constraint
 from logic import FolKB, conjuncts, unify_mm, associate, SAT_plan, cdcl_satisfiable
 from search import Node
-from utils import Expr, expr, first, powerset_product
-
-from plotter import *
-from graphplan_debugger import *
+from utils import Expr, expr, first
 
 class PlanningProblem:
     """
