@@ -788,8 +788,6 @@ class GraphPlan:
         prev_mutex = set(frozenset(m) for m in prev_level.state_mutexes)
         same_mutex = level_mutex == prev_mutex
         
-        print(f"leveloff, state_equality={same_state}, mutex_equality={same_mutex}, level_m_size={len(level_mutex)}, prev_level_m_size={len(prev_mutex)}")
-
         return same_state and same_mutex 
 
     def _get_preconditions_for(self, action_set, level):
