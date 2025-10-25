@@ -24,7 +24,7 @@ In this assignment, you will complete a custom rush-hour domain
 definition. Then, you will reason about plans in this domain.
 """
 
-import pytest
+import pytest # type: ignore
 from planning import *
 from logic import *
 
@@ -187,18 +187,26 @@ Note - the above example is not correct, and is nonsensical for this task.
 def simple_rush_hour_manual():
 
     # BEGIN_YOUR_CODE
-    
-    return []
-
+    return [
+        'MoveRight(R, C3_2, C3_3)', 
+        'MoveRight(R, C3_3, C3_4)', 
+    ]
     # END_YOUR_CODE
 
 
 def complex_rush_hour_manual():
 
     # BEGIN_YOUR_CODE
-    
-    return []
-
+    return [
+        'MoveUp(D, C3_2, C2_2)',
+        'MoveUp(A, C4_2, C3_2)', 
+        'MoveUp(E, c3_4, C2_4)', 
+        'MoveRight(C, C3_3, C3_4)', 
+        'MoveUp(B, C4_3, C3_3)', 
+        'MoveRight(R, C4_1, C4_2)', 
+        'MoveRight(R, C4_2, C4_3)', 
+        'MoveRight(R, C4_3, C4_4)', 
+    ]
     # END_YOUR_CODE 
 
 
