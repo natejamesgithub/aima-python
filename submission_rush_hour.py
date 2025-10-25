@@ -77,18 +77,17 @@ def rush_hour_4x4(initial, goals, domain):
                 domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentUp(frm, to)')),
 
             # --- Vertical moves ---
-            Action('MoveUp(c, frm, to)'
+            Action('MoveUp(c, frm, to)', 
                 precond=expr('At(c, frm) & Clear(to) & Horizontal(c) & AdjacentLeft(frm, to)'), 
                 effect=expr('At(c, to) & Clear(frm) & ~At(c, frm) & ~Clear(to)'), 
                 domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentUp(frm, to)')), 
 
-            Action('MoveDown(c, frm, to)'
+            Action('MoveDown(c, frm, to)', 
                 precond=expr('At(c, frm) & Clear(to) & Vertical(c) & AdjacentDown(frm, to)'), 
                 effect=expr('At(c, to) & Clear(frm) & ~At(c, frm) & ~Clear(to)'), 
                 domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentDown(frm, to)')), 
             # END_YOUR_CODE
-            
-        ],
+            ],
         domain=expr(
             # --- Car definitions ---
             domain + ' & '
