@@ -244,21 +244,21 @@ Hints
 def test_simple_rush_hour_graphplan():
 
     # BEGIN_YOUR_CODE
-
-    pass
-
+    planningProblem = simple_rush_hour_task() 
+    partial = GraphPlan(planningProblem).execute() 
+    linear = Linearize(planningProblem).execute() 
+    return partial, linear
     # END_YOUR_CODE
    
 
 def test_complex_rush_hour_graphplan():
 
     # BEGIN_YOUR_CODE
-
-    pass
-
+    planningProblem = complex_rush_hour_task() 
+    partial = GraphPlan(planningProblem).execute() 
+    linear = Linearize(planningProblem).execute() 
+    return partial, linear
     # END_YOUR_CODE
-
-
 
 """
 PART D -- Below, we provide 4 (initial/domain, goal) state and (actions) combos. 
