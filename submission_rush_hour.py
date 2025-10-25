@@ -114,15 +114,13 @@ def rush_hour_4x4(initial, goals, domain):
             'AdjacentDown(C1_4, C2_4) & AdjacentDown(C2_4, C3_4) & AdjacentDown(C3_4, C4_4) & '
             
             # BEGIN_YOUR_CODE
-
-
-
-
-
+            'AdjacentUp(C2_1, C1_1) & AdjacentUp(C3_1, C2_1) & AdjacentUp(C4_1, C3_1) & '
+            'AdjacentUp(C2_2, C1_2) & AdjacentUp(C3_2, C2_2) & AdjacentUp(C4_2, C3_2) & '
+            'AdjacentUp(C2_3, C1_3) & AdjacentUp(C3_3, C2_3) & AdjacentUp(C4_3, C3_3) & '
+            'AdjacentUp(C2_4, C1_4) & AdjacentUp(C3_4, C2_4) & AdjacentUp(C4_4, C3_4) & '
             # END_YOUR_CODE
         )
     ) 
-
 
 # ==============================================================
 # The following functions initialize a Planning Problem with the
