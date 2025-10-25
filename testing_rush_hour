@@ -1,0 +1,9 @@
+from submission_rush_hour import simple_rush_hour_task
+from planning import GraphPlan, Linearize
+
+pp = simple_rush_hour_task()
+partial = GraphPlan(pp).execute()
+linear  = Linearize(pp).execute()
+
+print("Partial:", partial)
+print("Linear:", linear)

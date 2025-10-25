@@ -47,7 +47,7 @@ Ensure your solution to this is correct, as the following
 parts build upon this function.
 """
 
-def rush_hour_4x4(initial, goals, domain):
+def rush_hour_4x4(initial, goals, domain_str):
     """
     Simplified 4x4 grid-shape rush_hour domain.
     
@@ -90,7 +90,7 @@ def rush_hour_4x4(initial, goals, domain):
             ],
         domain=expr(
             # --- Car definitions ---
-            domain + ' & '
+            domain_str + ' & '
             
             # --- Cell definitions ---
             'Cell(C1_1) & Cell(C1_2) & Cell(C1_3) & Cell(C1_4) & '
@@ -241,12 +241,40 @@ Hints
    each), and format into the acceptable solution format.
 """
 
+# def coerce(layers): 
+    # addendum: i made this function since i think that sometimes graphplan can return sets/tuples per layer. 
+    # this is my attempt to coerce to lists
+#   return [list(layer) for layer in layers] if layers is not None else None
+
+ACTION_OPS = {'MoveRight', 'MoveLeft', 'MoveUp', 'MoveDown'}
+
+def coerce(layers):
+    """Normalize GraphPlan's partial plan to: List[List[Expr(action)]]"""
+    if layers is None:
+        return None
+    # If we got the "one-solution wrapper" [[[...],[...]]] -> take the inner list
+    if len(layers) == 1 and isinstance(layers[0], list) and layers and any(isinstance(x, list) for x in layers[0]):
+        layers = layers[0]
+
+    cleaned = []
+    for layer in layers:
+        # Some implementations return tuples/sets per layer
+        seq = list(layer) if not isinstance(layer, list) else layer
+        acts = [e for e in seq if hasattr(e, "op") and e.op in ACTION_OPS]
+        if acts:
+            cleaned.append(acts)
+    return cleaned
+
+
 def test_simple_rush_hour_graphplan():
 
     # BEGIN_YOUR_CODE
-    planningProblem = simple_rush_hour_task() 
-    partial = GraphPlan(planningProblem).execute() 
-    linear = Linearize(planningProblem).execute() 
+    pp = simple_rush_hour_task()
+    partial = GraphPlan(pp).execute()
+    linear = Linearize(pp).execute()
+    partial = coerce(partial)
+    if linear is not None: 
+        linear = list(linear)
     return partial, linear
     # END_YOUR_CODE
    
@@ -254,9 +282,12 @@ def test_simple_rush_hour_graphplan():
 def test_complex_rush_hour_graphplan():
 
     # BEGIN_YOUR_CODE
-    planningProblem = complex_rush_hour_task() 
-    partial = GraphPlan(planningProblem).execute() 
-    linear = Linearize(planningProblem).execute() 
+    pp = complex_rush_hour_task()
+    partial = GraphPlan(pp).execute()
+    linear = Linearize(pp).execute()
+    partial = coerce(partial)
+    if linear is not None: 
+        linear = list(linear)
     return partial, linear
     # END_YOUR_CODE
 
@@ -458,3 +489,18 @@ def rush_hour_with_trucks(config):
     raise NotImplementedError()
 
     # #END_WORK_HERE
+
+
+if __name__ == "__main__":
+    print("\n=== Debugging Part C ===")
+    from planning import GraphPlan, Linearize
+
+    print("\n-- SIMPLE TASK --")
+    simple_partial, simple_linear = test_simple_rush_hour_graphplan()
+    print("Partial plan returned:\n", simple_partial)
+    print("Linear plan returned:\n", simple_linear)
+
+    print("\n-- COMPLEX TASK --")
+    complex_partial, complex_linear = test_complex_rush_hour_graphplan()
+    print("Partial plan returned:\n", complex_partial)
+    print("Linear plan returned:\n", complex_linear)
