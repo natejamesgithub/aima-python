@@ -71,15 +71,15 @@ def rush_hour_4x4(initial, goals, domain):
                 domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentRight(frm, to)')),
             
             # BEGIN_YOUR_CODE
-            Action('MoveLeft(c, frm, to)', 
-                precond=expr('At(c, frm) & Clear(to) & Horizontal(c) & AdjacentLeft(frm, to)'), 
+            Action('MoveLeft(c, frm, to)',
+                precond=expr('At(c, frm) & Clear(to) & Horizontal(c) & AdjacentLeft(frm, to)'),
                 effect=expr('At(c, to) & Clear(frm) & ~At(c, frm) & ~Clear(to)'),
-                domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentUp(frm, to)')),
+                domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentLeft(frm, to)')),
 
             # --- Vertical moves ---
-            Action('MoveUp(c, frm, to)', 
-                precond=expr('At(c, frm) & Clear(to) & Horizontal(c) & AdjacentLeft(frm, to)'), 
-                effect=expr('At(c, to) & Clear(frm) & ~At(c, frm) & ~Clear(to)'), 
+            Action('MoveUp(c, frm, to)',
+                precond=expr('At(c, frm) & Clear(to) & Vertical(c) & AdjacentUp(frm, to)'),
+                effect=expr('At(c, to) & Clear(frm) & ~At(c, frm) & ~Clear(to)'),
                 domain=expr('Car(c) & Cell(frm) & Cell(to) & AdjacentUp(frm, to)')), 
 
             Action('MoveDown(c, frm, to)', 
@@ -116,7 +116,7 @@ def rush_hour_4x4(initial, goals, domain):
             'AdjacentUp(C2_1, C1_1) & AdjacentUp(C3_1, C2_1) & AdjacentUp(C4_1, C3_1) & '
             'AdjacentUp(C2_2, C1_2) & AdjacentUp(C3_2, C2_2) & AdjacentUp(C4_2, C3_2) & '
             'AdjacentUp(C2_3, C1_3) & AdjacentUp(C3_3, C2_3) & AdjacentUp(C4_3, C3_3) & '
-            'AdjacentUp(C2_4, C1_4) & AdjacentUp(C3_4, C2_4) & AdjacentUp(C4_4, C3_4) & '
+            'AdjacentUp(C2_4, C1_4) & AdjacentUp(C3_4, C2_4) & AdjacentUp(C4_4, C3_4)'
             # END_YOUR_CODE
         )
     ) 
@@ -200,7 +200,7 @@ def complex_rush_hour_manual():
     return [
         'MoveUp(D, C3_2, C2_2)',
         'MoveUp(A, C4_2, C3_2)', 
-        'MoveUp(E, c3_4, C2_4)', 
+        'MoveUp(E, C3_4, C2_4)', 
         'MoveRight(C, C3_3, C3_4)', 
         'MoveUp(B, C4_3, C3_3)', 
         'MoveRight(R, C4_1, C4_2)', 
