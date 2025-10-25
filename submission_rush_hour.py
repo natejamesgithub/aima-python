@@ -368,7 +368,7 @@ def part_d():
     # BEGIN_YOUR_CODE
     
     # Modify the template below to solve the problem
-    return [('a1', 'i1'), ('a2', 'i1'), ('a3', 'i1'), ('a4', 'i1')] 
+    return [('a1', 'i3'), ('a2', 'i2'), ('a3', 'i4'), ('a4', 'i2')] 
     
     # END_YOUR_CODE
 
